@@ -1,23 +1,24 @@
 ---
 name: modern-csharp
 description: >
-  Modern C# language features for .NET 10 and C# 14. Covers primary constructors,
-  collection expressions, the field keyword, extension members, records, pattern
-  matching, spans, and raw string literals.
+  Modern C# language features. Covers primary constructors, collection expressions,
+  the field keyword, records, pattern matching, spans, and raw string literals.
+  Note: C# 14 features target .NET 10. For .NET 8 projects, C# 12 features apply
+  (collection expressions, required members, primary constructors for non-DI types).
   Load this skill when writing any new C# code, reviewing existing code for
-  modernization, using "modern C#", "C# 14", "primary constructor", "collection
-  expression", "records", "pattern matching", "span", "field keyword", or
-  "extension members". Always loaded as the baseline for all agents.
+  modernization, using "modern C#", "C# 14", "C# 12", "primary constructor",
+  "collection expression", "records", "pattern matching", "span", "field keyword".
+  Always loaded as the baseline for all agents.
 ---
 
-# Modern C# (C# 14 / .NET 10)
+# Modern C# (C# 12–14)
 
 ## Core Principles
 
-1. **Use the newest stable features** — C# 14 is the target. Prefer language-level constructs over library workarounds.
-2. **Readability over cleverness** — Pattern matching and expression-bodied members improve readability when used appropriately; deeply nested patterns do not.
-3. **Value types where possible** — Prefer `record struct`, `Span<T>`, and stack allocation to reduce GC pressure.
-4. **Immutability by default** — Use `record`, `readonly`, `init`, and `required` to make illegal states unrepresentable.
+1. **Apply features that match the project's target framework.** C# 14 features target .NET 10. For .NET 8 projects, use C# 12 features: collection expressions, required members, primary constructors for value types and non-DI classes.
+2. **In existing codebases, do not introduce new language features that change the established constructor/field style.** Respect the project's patterns.
+3. **Readability over cleverness** — Pattern matching and expression-bodied members improve readability when used appropriately; deeply nested patterns do not.
+4. **Immutability by default** — Use `record`, `readonly`, `init`, and `required` to make illegal states unrepresentable where the project style allows.
 
 ## Patterns
 

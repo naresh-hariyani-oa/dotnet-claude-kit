@@ -8,9 +8,13 @@ dotnet-claude-kit is an opinionated Claude Code companion for .NET developers. I
 
 ## Philosophy
 
+> **Enterprise context note:** This kit is customized for the OneAdvancedLegal production ecosystem.
+> Skills, rules, and templates have been scoped to match existing production project conventions.
+> The pcms-api project (.NET 8, Controllers, Repository pattern) is the primary reference target.
+
 - **Guided over prescriptive** — We ask the right questions, then recommend the best approach with clear rationale
-- **Modern .NET only** — Target .NET 10 and C# 14. No legacy patterns, no backwards compatibility with .NET Framework
-- **Architecture-aware** — We support VSA, Clean Architecture, DDD, and Modular Monolith with an advisor skill that recommends the best fit (see ADR-005)
+- **Modern .NET only** — Target .NET 10 and C# 14 for new projects. For existing projects, match the target framework (.NET 8, .NET Framework 4.8)
+- **Architecture-aware** — We support VSA, Clean Architecture, DDD, Modular Monolith, and layered Controller/Service/Repository with an advisor skill that recommends the best fit (see ADR-005)
 - **Token-conscious** — Every file respects context window limits. Skills max at 400 lines
 - **Practical over theoretical** — Every recommendation includes a code example and a "why"
 
@@ -43,9 +47,9 @@ description: >
 
 - **Maximum 400 lines** — Every line must earn its place. Respect token budgets.
 - **Every recommendation has a "why"** — No bare rules without justification
-- **Code examples must be modern C#** — Primary constructors, collection expressions, file-scoped namespaces, records
-- **No Swashbuckle** — Use built-in .NET OpenAPI support
-- **No repository pattern over EF Core** — Use DbContext directly
+- **Code examples must be modern C#** — File-scoped namespaces, records for DTOs in new projects, match existing project style for modifications
+- **OpenAPI** — Use built-in .NET OpenAPI support for new projects; continue with Swashbuckle in existing projects that already use it
+- **Data access** — In new projects, prefer DbContext directly; in existing projects with an established repository layer, work within it
 - **`TimeProvider` over `DateTime.Now`** — Always
 
 ## Agent Structure

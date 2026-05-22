@@ -13,9 +13,9 @@ description: >
 
 ## Core Principles
 
-1. **HybridCache is the default** — .NET 9+ introduced `HybridCache` as the unified caching abstraction. It combines in-memory (L1) and distributed (L2) caching with stampede protection. See ADR-004.
-2. **Cache reads, not writes** — Cache GET operations. Invalidate on mutations. Never cache POST/PUT/DELETE responses.
-3. **Output caching for entire responses** — When the full HTTP response can be cached (public APIs, static data), use output caching middleware.
+1. **For existing projects, work within the established caching infrastructure.** If the project uses `IMemoryCache` or `IDistributedCache` (Redis), extend that pattern — do not suggest replacing working production caching. For new projects, `HybridCache` is preferred.
+2. **HybridCache for new projects** — .NET 9+ `HybridCache` combines in-process (L1) and distributed (L2) caching with built-in stampede protection.
+3. **Cache reads, not writes** — Cache GET operations. Invalidate on mutations. Never cache POST/PUT/DELETE responses.
 4. **Set explicit TTLs** — Every cached item needs an expiration. No unbounded caches.
 
 ## Patterns

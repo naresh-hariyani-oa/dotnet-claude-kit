@@ -16,10 +16,10 @@ description: >
 
 ## Core Principles
 
-1. **Built-in, not Swashbuckle** — .NET 10 ships `Microsoft.AspNetCore.OpenApi` as the official, framework-maintained OpenAPI solution. Swashbuckle was removed from templates in .NET 9 and is no longer recommended.
-2. **TypedResults drive the schema** — `TypedResults.Ok<T>()` automatically generates correct OpenAPI response schemas. `Results.Ok()` does not. Always use `TypedResults`.
-3. **Transformers over workarounds** — Document, operation, and schema transformers compose cleanly. Use them for security schemes, global responses, and schema customization.
-4. **Metadata on every endpoint** — Use `.WithName()`, `.WithSummary()`, `.WithTags()` on every endpoint. This metadata feeds directly into the OpenAPI spec and client generators.
+1. **Match the project's existing OpenAPI setup.** For projects using Swashbuckle (`Swashbuckle.AspNetCore`), continue with Swashbuckle — it is supported and embedded in existing projects. Built-in OpenAPI (`AddOpenApi`/`MapOpenApi`) is the recommended choice for new .NET 9/10 projects only.
+2. **Built-in for new projects** — .NET 10 ships `Microsoft.AspNetCore.OpenApi` as the official, framework-maintained OpenAPI solution. Swashbuckle was removed from templates in .NET 9 and is no longer recommended for new projects.
+3. **TypedResults drive the schema (new projects)** — `TypedResults.Ok<T>()` automatically generates correct OpenAPI response schemas. `Results.Ok()` does not.
+4. **Transformers over workarounds** — Document, operation, and schema transformers compose cleanly for security schemes, global responses, and schema customization.
 
 ## Patterns
 

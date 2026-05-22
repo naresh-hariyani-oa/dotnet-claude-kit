@@ -1,63 +1,86 @@
 ---
 name: testing
 description: >
-  Testing strategy for .NET 10 applications. Covers xUnit v3, WebApplicationFactory
-  for integration tests, Testcontainers for real database testing, Verify for
-  snapshot testing, and the AAA pattern.
+  Testing strategy for .NET applications. Covers xUnit, Moq-based unit tests,
+  WebApplicationFactory for integration tests, Testcontainers for real database testing,
+  Verify for snapshot testing, and the AAA pattern.
   Load this skill when writing tests, setting up test infrastructure, reviewing
-  test coverage, or when the user mentions "test", "xUnit", "WebApplicationFactory",
-  "Testcontainers", "integration test", "unit test", "bUnit", "snapshot test",
-  "Verify", "test coverage", "AAA pattern", "WireMock", or "FakeTimeProvider".
+  test coverage, or when the user mentions "test", "xUnit", "Moq", "Mock",
+  "WebApplicationFactory", "Testcontainers", "integration test", "unit test",
+  "snapshot test", "Verify", "test coverage", "AAA pattern", "IClassFixture",
+  "fixture", "WireMock", or "FakeTimeProvider".
 ---
 
-# Testing (.NET 10)
+# Testing (.NET)
 
 ## Core Principles
 
-1. **Integration tests are the highest-value tests** — A single `WebApplicationFactory` test covers routing, binding, validation, business logic, and persistence in one shot. Start here before writing unit tests.
-2. **Real databases in tests** — Use Testcontainers to spin up real PostgreSQL/SQL Server instances. In-memory providers hide real bugs (transactions, constraints, SQL generation).
-3. **AAA pattern is mandatory** — Every test has three clearly separated sections: Arrange, Act, Assert. No mixing.
-4. **Test behavior, not implementation** — Tests should survive refactoring. Test what the system does, not how it does it.
+1. **Match the project's established testing strategy** — For Controller-based APIs with Moq-based service unit tests (the pcms-api pattern), extend that pattern. For new greenfield projects, `WebApplicationFactory` + Testcontainers integration tests are the highest-value approach.
+2. **Moq is appropriate for service-layer unit tests** — In layered APIs with repository interfaces, mock the repository; test service logic in isolation using `IClassFixture<T>` and a shared fixture.
+3. **Real databases when integration testing** — Never use `UseInMemoryDatabase` for EF Core integration tests. Use Testcontainers for new integration test suites.
+4. **AAA pattern is mandatory** — Every test has three clearly separated sections: Arrange, Act, Assert. No mixing.
+5. **Test behavior, not implementation** — Tests should survive refactoring. Test what the system does, not how it does it.
 
 ## Patterns
 
-### xUnit v3 Basics
+### Moq Unit Test Pattern (for layered Controller-based APIs)
+
+The standard pattern for pcms-api style projects: fixture provides Mapper + Logger + test data, service is constructed with mocked repositories.
 
 ```csharp
-public class OrderServiceTests
+// {Domain}Fixture.cs — shared setup and test data
+public class OrderFixture : BaseFixture
 {
+    public Order SampleOrder { get; } = new Order { Id = 1, Status = "Active" };
+}
+
+// {Domain}ServiceTest.cs
+public class OrderServiceTest : IClassFixture<OrderFixture>
+{
+    private readonly OrderFixture _fixture;
+
+    public OrderServiceTest(OrderFixture fixture) => _fixture = fixture;
+
     [Fact]
-    public async Task CreateOrder_WithValidItems_ReturnsSuccessResult()
+    public async Task GetOrderAsync_ValidId_ReturnsOrder()
     {
         // Arrange
-        var db = CreateInMemoryDb();
-        var clock = new FakeTimeProvider(new DateTimeOffset(2025, 1, 15, 0, 0, 0, TimeSpan.Zero));
-        var service = new OrderService(db, clock);
-        var request = new CreateOrderRequest("customer-1", [new("product-1", 2)]);
+        var mockRepo = new Mock<IOrderRepository>();
+        mockRepo.Setup(r => r.GetByIdAsync(It.IsAny<int>()))
+                .ReturnsAsync(_fixture.SampleOrder);
+        var service = new OrderService(mockRepo.Object, _fixture.Mapper, _fixture.Logger);
 
         // Act
-        var result = await service.CreateAsync(request);
+        var result = await service.GetOrderAsync(1);
 
         // Assert
-        Assert.True(result.IsSuccess);
-        Assert.NotEqual(Guid.Empty, result.Value.Id);
-        Assert.Equal(clock.GetUtcNow(), result.Value.CreatedAt);
+        Assert.NotNull(result);
+        Assert.Equal(_fixture.SampleOrder.Id, result.Id);
     }
 
     [Theory]
-    [InlineData("")]
-    [InlineData(null)]
-    public async Task CreateOrder_WithInvalidCustomerId_ReturnsFailure(string? customerId)
+    [MemberData(nameof(OrderDataSource.InvalidIds), MemberType = typeof(OrderDataSource))]
+    public async Task GetOrderAsync_InvalidId_ThrowsResourceNotFoundException(int id)
     {
         // Arrange
-        var service = CreateService();
+        var mockRepo = new Mock<IOrderRepository>();
+        mockRepo.Setup(r => r.GetByIdAsync(id)).ReturnsAsync((Order?)null);
+        var service = new OrderService(mockRepo.Object, _fixture.Mapper, _fixture.Logger);
 
-        // Act
-        var result = await service.CreateAsync(new CreateOrderRequest(customerId!, []));
-
-        // Assert
-        Assert.False(result.IsSuccess);
+        // Act & Assert
+        await Assert.ThrowsAsync<ResourceNotFoundException>(() => service.GetOrderAsync(id));
     }
+}
+
+// {Domain}DataSource.cs — parameterized test data
+public static class OrderDataSource
+{
+    public static IEnumerable<object[]> InvalidIds =>
+    [
+        [0],
+        [-1],
+        [int.MinValue]
+    ];
 }
 ```
 
@@ -261,29 +284,41 @@ Use the pattern: `MethodName_StateUnderTest_ExpectedBehavior`
 
 ## Anti-patterns
 
-### Don't Use In-Memory Database for Integration Tests
+### Don't Use In-Memory Database for EF Core Integration Tests
 
 ```csharp
 // BAD — hides real SQL behavior, transactions, constraints
 services.AddDbContext<AppDbContext>(options =>
     options.UseInMemoryDatabase("TestDb"));
 
-// GOOD — Testcontainers with real database
+// GOOD — Testcontainers with real database (for new integration test suites)
 services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(testContainer.GetConnectionString()));
+    options.UseSqlServer(testContainer.GetConnectionString()));
+```
+
+### Don't Mock at the Wrong Layer
+
+```csharp
+// BAD — in a service unit test, mocking the DbContext directly is fragile
+var mockDb = new Mock<AppDbContext>();
+mockDb.Setup(x => x.Orders).Returns(mockDbSet);
+
+// GOOD — mock the repository interface; test service logic
+var mockRepo = new Mock<IOrderRepository>();
+mockRepo.Setup(r => r.GetByIdAsync(1)).ReturnsAsync(order);
+var service = new OrderService(mockRepo.Object, _fixture.Mapper, _fixture.Logger);
 ```
 
 ### Don't Test Implementation Details
 
 ```csharp
-// BAD — testing that a specific repository method was called
-mock.Verify(x => x.AddAsync(It.IsAny<Order>()), Times.Once);
-mock.Verify(x => x.SaveChangesAsync(), Times.Once);
+// BAD — test verifies a specific method call count (couples to implementation)
+mock.Verify(x => x.GetByIdAsync(It.IsAny<int>()), Times.Exactly(2));
 
-// GOOD — test the observable outcome
-var order = await db.Orders.FindAsync(orderId);
-Assert.NotNull(order);
-Assert.Equal(OrderStatus.Created, order.Status);
+// GOOD — test the observable outcome (return value, exception thrown)
+var result = await service.GetOrderAsync(1);
+Assert.NotNull(result);
+Assert.Equal(OrderStatus.Active, result.Status);
 ```
 
 ### Don't Share Mutable State Between Tests

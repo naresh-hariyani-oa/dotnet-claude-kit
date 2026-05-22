@@ -1,36 +1,33 @@
 ---
 name: scaffolding
 description: >
-  Code scaffolding patterns for .NET 10 features, entities, and tests.
-  Generates complete feature slices, entities with EF Core configuration,
-  and integration tests following the project's chosen architecture.
+  Code scaffolding patterns for .NET features, entities, controllers, services,
+  and repositories. Generates code that matches the project's existing architecture.
   Load when: "scaffold", "create feature", "add feature", "new endpoint",
-  "generate", "add entity", "new entity", "scaffold test", "add module".
+  "generate", "add entity", "new entity", "scaffold test", "add controller",
+  "add service", "add repository", "new domain".
 ---
 
 # Scaffolding
 
 ## Core Principles
 
-1. **Architecture-aware generation** — Never scaffold without knowing the project's architecture (VSA, CA, DDD, Modular Monolith). If unknown, ask first or run the architecture-advisor questionnaire.
-2. **Complete vertical slices** — Never generate half a feature. A scaffold includes endpoint, handler, validation, DTOs, EF configuration, and tests as a single unit.
-3. **Tests included by default** — Every scaffolded feature includes at least one integration test using `WebApplicationFactory` + `Testcontainers`. Skip only if explicitly told to.
-4. **Modern C# 14 patterns** — Primary constructors, collection expressions, `file`-scoped types, records for DTOs, `sealed` on all handler classes.
-5. **Convention-matching** — Before generating, check existing code for naming patterns (`*Handler`, `*Service`, `*Endpoint`), folder structure, and access modifiers. Match what exists.
+1. **Detect before generating.** Use `get_project_graph` and `find_symbol('ControllerBase')` before generating any code. The project's architecture (Controller/Service/Repository layered vs. Vertical Slice) determines the scaffold shape.
+2. **Convention-matching is mandatory.** Before generating, identify: naming patterns (`*Service`, `*Repository`, `*Controller`), folder structure, constructor style (`_field` vs primary constructor), attribute conventions on controllers, and existing base classes. Match exactly.
+3. **Complete generation.** Never generate half a feature. A scaffold for a new domain in a layered API includes: controller, service interface + implementation, repository interface + implementation, DTOs, AutoMapper profile (if used), and a test class with fixture.
+4. **CancellationToken on every async method** — propagate through the full call chain.
+5. **Match the project's test pattern** — for layered APIs with Moq unit tests, scaffold a `{Domain}ServiceTest.cs` + `{Domain}Fixture.cs`.
 
-### Scaffold Checklist (MANDATORY)
+### Scaffold Checklist — Layered Controller API (pcms-api pattern)
 
-Every scaffolded feature MUST include ALL of the following. Do not skip any item:
-
-- [ ] **Result pattern** — Handlers return `Result<T>`, not raw responses. Endpoints map Result to HTTP (success → TypedResults, failure → `ToProblemDetails()`)
-- [ ] **CancellationToken** on every async method and passed to every async call
-- [ ] **FluentValidation** validator class with meaningful rules (ranges, required fields, max lengths)
-- [ ] **ValidationFilter wiring** — `.AddEndpointFilter<ValidationFilter<T>>()` on mutating endpoints
-- [ ] **OpenAPI metadata** — `.WithName()`, `.WithSummary()`, `.Produces<T>()`, `.ProducesValidationProblem()`, `.ProducesProblem(404)`
-- [ ] **Pagination** on list endpoints — `page`, `pageSize` with bounded max (e.g., 50)
-- [ ] **Global error handler** — Verify `app.UseExceptionHandler()` exists in Program.cs; scaffold if missing
-- [ ] **appsettings.json** — Verify connection string exists; scaffold with placeholder if missing
-- [ ] **Integration test** with proper DI replacement using `services.RemoveAll<DbContextOptions<T>>()`
+- [ ] **Controller** — `[ApiController]`, `[ApiVersion("1.0")]`, `[Route]`, `[Authorize]`, `[EnableCors]`, constructor injection of service
+- [ ] **Service** — interface `I{Domain}Service`, implementation `{Domain}Service`, inherits `BaseService`, `_logger.LogMethodEntry()` on each method
+- [ ] **Repository** — interface `I{Domain}Repository`, implementation `{Domain}Repository`, inherits `BaseRepository<T>`, parameterized queries only
+- [ ] **DTOs** — request/response classes, NOT records (AutoMapper profiles need mutable classes in this project)
+- [ ] **AutoMapper profile** — `{Domain}Profile : Profile` with `CreateMap<Entity, Dto>().ReverseMap()`
+- [ ] **Registration** — service + repository registered in `Program.cs` or the relevant DI registration file
+- [ ] **Test class** — `{Domain}ServiceTest.cs` with `IClassFixture<{Domain}Fixture>`, at least one `[Fact]` per service method
+- [ ] **CancellationToken** on every async method
 
 ## Patterns
 
