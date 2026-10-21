@@ -1,6 +1,6 @@
 # Vetted NuGet Package Recommendations
 
-> Last updated: March 2026 -- .NET 10 / C# 14
+> Last updated: 2026-07-22 -- .NET 10 / C# 14 (versions verified against NuGet.org)
 
 Curated packages that dotnet-claude-kit recommends by default. Every entry includes rationale and guidance on when NOT to use it.
 
@@ -38,16 +38,17 @@ The version ranges below (e.g., "13.x") indicate the **minimum recommended major
 
 ### Wolverine
 
-- **Package:** `WolverineFx` (3.x)
+- **Package:** `WolverineFx` (6.x)
 - **License:** MIT (free, no commercial restrictions)
 - **Rationale:** Combines mediator + messaging in one library. Built-in outbox, saga support, and direct integration with RabbitMQ/Azure Service Bus. Convention-based handlers (no interfaces). Good choice if you want a single library for both in-process and distributed messaging, avoiding the need for a separate MassTransit dependency.
+- **v6 note:** Wolverine 6 changed runtime defaults, removed deprecated APIs, and moved namespaces. Migrating from 5.x? Use `RestoreV5Defaults()` at the top of the `UseWolverine` lambda to adopt the 6.x API without the new defaults. See the [migration guide](https://wolverinefx.net/guide/migration).
 - **When NOT to use:** If you only need a simple in-process mediator without messaging (use Mediator instead). If your team prefers explicit interfaces over convention-based discovery.
 
 ### MediatR (Commercial License)
 
-- **Package:** `MediatR` (13.x)
-- **License:** RPL-1.5 + commercial dual license since v13. **Requires a paid license for most commercial use.** Previous versions (≤12.x) remain MIT but are unsupported.
-- **Rationale:** The most widely adopted mediator in .NET with the largest community. Excellent pipeline behavior support. Consider only if your organization already has a MediatR commercial license.
+- **Package:** `MediatR` (14.x)
+- **License:** Lucky Penny Software dual license since v13: RPL-1.5 (copyleft, free if you accept reciprocal obligations) or paid commercial. **Most commercial teams need a paid license** (activated via `MEDIATR_LICENSE_KEY` / `LUCKYPENNY_LICENSE_KEY`). Versions ≤12.x remain MIT but are unsupported.
+- **Rationale:** The most widely adopted mediator in .NET with the largest community. v14 adds .NET 10 support. Excellent pipeline behavior support. Consider only if your organization already has a MediatR commercial license.
 - **When NOT to use:** For new projects — use `Mediator` (source-generated, MIT, faster) or Wolverine instead. The commercial license adds cost without technical advantage over the MIT alternatives.
 
 ---
@@ -92,9 +93,18 @@ The version ranges below (e.g., "13.x") indicate the **minimum recommended major
 
 ### xUnit v3
 
-- **Package:** `xunit.v3` (1.x)
+- **Package:** `xunit.v3` (3.x)
 - **Rationale:** The default test framework for .NET. v3 brings a new architecture with improved parallel execution, `IAsyncLifetime` improvements, and better diagnostics. Used by the .NET team itself.
 - **When NOT to use:** If your team has an existing large NUnit or MSTest suite and migration cost outweighs benefits.
+
+### Assertions (Kit-Wide Stance)
+
+- **Default:** xUnit built-in `Assert` — zero extra dependencies, zero licensing risk.
+- **FluentAssertions is commercial from v8.** v8+ requires a paid Xceed license for commercial use; v7 remains Apache 2.0 but is frozen. Do not add FluentAssertions v8+ to a commercial project without procurement approval.
+- **If you want fluent syntax (MIT/Apache alternatives):**
+  - `Shouldly` (4.x) — clean `value.ShouldBe(expected)` syntax, long-established, BSD-licensed.
+  - `AwesomeAssertions` — community fork of FluentAssertions v7 under Apache 2.0. API-compatible with FA, so migration from FA v7 is near zero cost.
+- **When NOT to switch:** An existing suite locked on FluentAssertions v7 can stay there indefinitely — v7's license does not expire.
 
 ### Testcontainers
 
@@ -110,7 +120,7 @@ The version ranges below (e.g., "13.x") indicate the **minimum recommended major
 
 ### WireMock.Net
 
-- **Package:** `WireMock.Net` (1.6.x)
+- **Package:** `WireMock.Net` (2.x)
 - **Rationale:** HTTP mock server for integration tests. Simulate external API responses, latency, and failures. Useful for testing resilience policies and HTTP client behavior without hitting real services.
 - **When NOT to use:** When a simple `DelegatingHandler` or `HttpMessageHandler` mock is sufficient. For testing internal service-to-service calls in the same process (use `WebApplicationFactory` instead).
 
@@ -126,15 +136,16 @@ The version ranges below (e.g., "13.x") indicate the **minimum recommended major
 
 ### Wolverine (Recommended Default)
 
-- **Package:** `WolverineFx` (3.x), transport packages (e.g., `WolverineFx.RabbitMQ`, `WolverineFx.AzureServiceBus`)
+- **Package:** `WolverineFx` (6.x), transport packages (e.g., `WolverineFx.RabbitMQ`, `WolverineFx.AzureServiceBus`)
 - **License:** MIT (free, no commercial restrictions)
 - **Rationale:** Modern message bus with built-in outbox, saga support, and direct integration with RabbitMQ/Azure Service Bus. Also doubles as an in-process mediator, letting you use a single library for both. Transport-agnostic, convention-based handlers, and source-generated dispatch for high performance. If you already use Wolverine as your mediator, this is the natural choice for messaging too.
+- **v6 note:** v6 changed defaults, removed APIs, and moved namespaces — use `RestoreV5Defaults()` when upgrading from 5.x without adopting new runtime defaults ([migration guide](https://wolverinefx.net/guide/migration)).
 - **When NOT to use:** For very simple queue consumption where the raw Azure SDK or RabbitMQ client is sufficient. If your team is heavily invested in MassTransit patterns (state machines, consumer definitions) and migration cost is not justified.
 
 ### MassTransit (Commercial License from v9)
 
-- **Package:** `MassTransit` (9.x), transport packages (e.g., `MassTransit.RabbitMQ`, `MassTransit.Azure.ServiceBus.Core`)
-- **License:** **Commercial license required from v9** (released Q1 2026). v8 remains Apache 2.0 with security patches through end of 2026.
+- **Package:** `MassTransit` (9.x, current 9.1.x), transport packages (e.g., `MassTransit.RabbitMQ`, `MassTransit.Azure.ServiceBus.Core`)
+- **License:** **v9 is released and requires a commercial license** (tiered pricing, no per-seat limits). v8 remains Apache 2.0 with security patches through end of 2026, after which it is end-of-life.
 - **Rationale:** The most mature message bus abstraction for .NET. Transactional outbox, sagas, state machines, retry policies, and dead-letter handling built in. Excellent Aspire integration. Consider if your organization already has a MassTransit license or is on v8 and plans to stay.
 - **When NOT to use:** For new projects — use Wolverine instead (MIT, similar capabilities). If you are using Wolverine for both mediator and messaging (avoid two overlapping abstractions). If you only need simple in-process pub/sub.
 
@@ -150,7 +161,7 @@ The version ranges below (e.g., "13.x") indicate the **minimum recommended major
 
 ### StackExchange.Redis
 
-- **Package:** `StackExchange.Redis` (2.x), `Microsoft.Extensions.Caching.StackExchangeRedis`
+- **Package:** `StackExchange.Redis` (3.x), `Microsoft.Extensions.Caching.StackExchangeRedis`
 - **Rationale:** The standard Redis client for .NET. Backs `IDistributedCache` and HybridCache L2. High performance, connection multiplexing, Lua scripting support.
 - **When NOT to use:** If you are not using Redis. If your caching needs are purely in-memory.
 
@@ -186,13 +197,36 @@ The version ranges below (e.g., "13.x") indicate the **minimum recommended major
 
 ---
 
-## .NET Aspire
+## Aspire
 
-### .NET Aspire
+### Aspire (13.x)
 
-- **Package:** `Aspire.AppHost`, `Aspire.ServiceDefaults`, plus component packages (e.g., `Aspire.Npgsql.EntityFrameworkCore.PostgreSQL`)
-- **Rationale:** Orchestration, service discovery, health checks, and telemetry for cloud-native .NET apps. Dashboard for local development. Simplifies configuration of databases, caches, and message brokers. Generates deployment manifests.
+- **Package:** `Aspire.Hosting.AppHost` (the AppHost orchestrator), plus integration packages (e.g., `Aspire.Npgsql.EntityFrameworkCore.PostgreSQL`). ServiceDefaults is a project template that Aspire tooling generates, not a NuGet package.
+- **Rationale:** Orchestration, service discovery, health checks, and telemetry for cloud-native apps. Dashboard for local development. Simplifies configuration of databases, caches, and message brokers.
+- **Aspire 13 changes:** Rebranded from ".NET Aspire" to polyglot **Aspire** ([aspire.dev](https://aspire.dev)) with first-class Python and JavaScript/TypeScript support alongside .NET. The `aspire` CLI is now the primary interface (purpose-built for AI coding agents: detached mode, structured output, health-check blocking). Single-file AppHosts are supported — no project file needed, package references via `#:package` directives.
 - **When NOT to use:** For single-project applications with no external dependencies. If your deployment target does not support container orchestration. If you are deploying to a platform with its own service mesh and discovery (and Aspire adds duplication).
+
+---
+
+## Object Mapping
+
+### Manual Mapping (Recommended Default)
+
+- **Package:** none
+- **Rationale:** For DTOs, an explicit `static OrderDto ToDto(this Order order)` extension or record constructor is transparent, refactor-safe, and debuggable. Most projects have too few mappings to justify a library.
+
+### Mapperly
+
+- **Package:** `Riok.Mapperly` (4.x)
+- **License:** Apache 2.0 (free, no commercial restrictions)
+- **Rationale:** Source-generated mapper — compile-time generated code, no reflection, Native AOT compatible, and you can read the generated mapping in the IDE. The best library choice when mapping volume makes manual mapping tedious.
+- **When NOT to use:** When mappings are few and manual code is clearer.
+
+### AutoMapper (Commercial License)
+
+- **Package:** `AutoMapper` (16.x)
+- **License:** Lucky Penny Software dual license since v15: RPL-1.5 or paid commercial (`LUCKYPENNY_LICENSE_KEY`). Versions ≤14.x remain MIT but are unsupported.
+- **Recommendation:** Do not add to new projects. Use manual mapping or Mapperly. Consider only if your organization already holds a Lucky Penny license.
 
 ---
 
@@ -200,7 +234,7 @@ The version ranges below (e.g., "13.x") indicate the **minimum recommended major
 
 ### Scrutor
 
-- **Package:** `Scrutor` (5.x)
+- **Package:** `Scrutor` (7.x)
 - **Rationale:** Assembly scanning and decoration for `Microsoft.Extensions.DependencyInjection`. Register all implementations of an interface with a single call. Decorator pattern support without manual wrapper classes.
 - **When NOT to use:** For small projects with fewer than 10 services where explicit registration is clearer. If you are using a full DI container (Autofac, Lamar) that already has scanning and decoration built in.
 
@@ -210,6 +244,6 @@ The version ranges below (e.g., "13.x") indicate the **minimum recommended major
 
 ### Refit
 
-- **Package:** `Refit` (8.x), `Refit.HttpClientFactory`
+- **Package:** `Refit` (13.x), `Refit.HttpClientFactory`
 - **Rationale:** Define HTTP clients as interfaces with attributes. Source-generated at compile time (no runtime reflection). Integrates with `IHttpClientFactory` for proper `HttpClient` lifecycle. Reduces boilerplate for typed HTTP clients.
 - **When NOT to use:** For a single HTTP call where a manually configured `HttpClient` is simpler. If the external API provides its own official .NET SDK. If you need full control over request/response serialization that Refit's conventions do not support.

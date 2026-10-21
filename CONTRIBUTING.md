@@ -16,7 +16,7 @@ Thank you for your interest in contributing! This guide covers how to add skills
 Skills are the core of dotnet-claude-kit. Each skill lives at `skills/<skill-name>/SKILL.md`.
 
 **Before creating a new skill:**
-- Check the [existing skills](#current-skills) to avoid overlap
+- Check the [existing skills](README.md#knowledge-skills-31) to avoid overlap
 - Open a [Skill Proposal](../../issues/new?template=new-skill.yml) issue for discussion
 - Review the skill format in `CLAUDE.md`
 
@@ -51,19 +51,31 @@ Each template needs:
 - `CLAUDE.md` — The drop-in file with project context, skills references, commands
 - `README.md` — When and how to use the template
 
-### Commands
+### Workflow Skills (Orchestrators)
 
-Commands in `commands/` are lightweight orchestrators that invoke skills and agents.
+Claude Code merged slash commands into skills — there is no `commands/` directory. Workflow orchestrators (e.g., `/verify`, `/scaffold`) are skills at `skills/<name>/SKILL.md`; the skill name registers the slash invocation automatically.
 
-**Command requirements:**
-- YAML frontmatter with `description`
+**Workflow skill requirements:**
+- YAML frontmatter with `name` and `description` (add `disable-model-invocation: true` for explicit-only invocation)
 - Required sections: What, When, How, Example, Related
-- Maximum 200 lines
-- Commands invoke skills/agents — they don't contain the logic themselves
+- Maximum 200 lines (knowledge skills get 400)
+- One skill per concern — a workflow carries its methodology inline; never create a separate knowledge twin for a workflow (twins double the always-loaded description surface and cause routing collisions)
+- Deep reference material that exceeds the budget goes in `skills/<name>/references/<topic>.md`, loaded on demand from SKILL.md
+
+### Agents
+
+Agents in `agents/` are specialist subagents.
+
+**Agent requirements:**
+- YAML frontmatter with `name` (matches file name) and `description` (include concrete trigger scenarios — Claude routes delegation on this)
+- Optional `model:` uses tier aliases only (`fable`, `opus`, `sonnet`, `haiku`) — never pinned version IDs
+- Optional `memory`, `disallowedTools`, and `isolation` fields are allowed when the agent's role calls for them (see CLAUDE.md for the schema)
+- No `permissionMode`, `hooks`, or `mcpServers` in frontmatter (unsupported for plugin agents)
+- Required sections: Role definition, Skill dependencies, MCP tool usage, Response patterns, Boundaries
 
 ### Rules
 
-Rules in `rules/dotnet/` are always-loaded conventions.
+Rules in `.claude/rules/` are always-loaded conventions.
 
 **Rule requirements:**
 - YAML frontmatter with `alwaysApply: true` and `description`

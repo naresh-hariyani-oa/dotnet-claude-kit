@@ -54,12 +54,7 @@ app.MapGet("/orders", GetOrders);
 
 ## Transport and Data Protection
 
-- **Use HTTPS everywhere.** Enforce via HSTS in production. Redirect HTTP to HTTPS. No exceptions.
-
-```csharp
-app.UseHsts();
-app.UseHttpsRedirection();
-```
+- **Use HTTPS everywhere.** Enforce via HSTS in production (`app.UseHsts()` + `app.UseHttpsRedirection()`). Redirect HTTP to HTTPS. No exceptions.
 
 - **Use Data Protection API for encrypting user data at rest.** Never roll your own encryption. The Data Protection API handles key rotation and algorithm selection correctly.
 - **CORS: explicit origins only, never wildcard in production.** `AllowAnyOrigin()` in production exposes your API to every domain on the internet.

@@ -1,66 +1,36 @@
 ---
 name: logging
 description: >
-  Observability for .NET 10 applications. Covers Serilog structured logging,
-  OpenTelemetry traces and metrics, health checks, and correlation IDs.
-  Load this skill when setting up logging, tracing, metrics, or health monitoring,
-  or when the user mentions "Serilog", "logging", "structured log", "OpenTelemetry",
-  "traces", "metrics", "health check", "correlation ID", "observability",
-  "telemetry", "log enrichment", or "ILogger".
+  Observability overview and glue for .NET 10: how the pieces fit together,
+  plus the cross-cutting parts owned here — ASP.NET health check endpoints
+  (/health), correlation IDs, and log-level strategy. For deep Serilog setup
+  load `serilog`; for traces and metrics load `opentelemetry`. Load this
+  skill when setting up observability from scratch, wiring health check
+  endpoints or correlation IDs, or when the user says "logging",
+  "observability", "monitoring setup", "liveness", "readiness", or "ILogger".
 ---
 
 # Logging & Observability
 
 ## Core Principles
 
-1. **Structured logging with Serilog** — Every log entry is a structured event with named properties, not a formatted string. This enables searching, filtering, and alerting.
-2. **OpenTelemetry for distributed tracing** — Traces connect requests across services. Metrics track system health over time.
-3. **Health checks for operational readiness** — Every service exposes `/health` endpoints for load balancers and orchestrators.
-4. **Correlation IDs for request tracing** — Every request gets a unique ID that flows through all log entries and downstream service calls.
+1. **Structured logging with Serilog** — Every log entry is a structured event with named properties, not a formatted string. This enables searching, filtering, and alerting. All setup (two-stage bootstrap, `AddSerilog()`, sinks, enrichers) lives in the **serilog** skill — that skill's `AddSerilog()`-over-`UseSerilog()` guidance is canonical.
+2. **OpenTelemetry for distributed tracing** — Traces connect requests across services; metrics track system health over time. Full setup lives in the **opentelemetry** skill.
+3. **Health checks for operational readiness** — Every service exposes `/health` endpoints for load balancers and orchestrators. Liveness and readiness are separate questions and separate endpoints.
+4. **Correlation IDs for request tracing** — Every request gets a unique ID that flows through all log entries and downstream service calls, so one user complaint maps to one filtered log stream.
 
 ## Patterns
 
-### Serilog Setup
+### How the Pieces Fit Together
 
-```csharp
-// Program.cs
-builder.Host.UseSerilog((context, loggerConfig) =>
-{
-    loggerConfig
-        .ReadFrom.Configuration(context.Configuration)
-        .Enrich.FromLogContext()
-        .Enrich.WithMachineName()
-        .Enrich.WithProperty("Application", "MyApp.Api")
-        .WriteTo.Console(outputTemplate:
-            "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}")
-        .WriteTo.Seq(context.Configuration["Seq:Url"] ?? "http://localhost:5341");
-});
+| Concern | Owner | Skill |
+|---------|-------|-------|
+| Structured application logs | Serilog (`AddSerilog()`) | `serilog` |
+| Request summary logging | `UseSerilogRequestLogging()` | `serilog` |
+| Traces + metrics + OTLP export | OpenTelemetry SDK | `opentelemetry` |
+| Health endpoints, correlation IDs, log-level strategy | This skill | `logging` |
 
-// After building the app
-app.UseSerilogRequestLogging(options =>
-{
-    options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
-    {
-        diagnosticContext.Set("UserId",
-            httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous");
-    };
-});
-```
-
-### Structured Logging (Correct Usage)
-
-```csharp
-// GOOD — structured logging with message template
-logger.LogInformation("Processing order {OrderId} for customer {CustomerId}",
-    orderId, customerId);
-
-// GOOD — include relevant context
-logger.LogWarning("Payment failed for order {OrderId}. Attempt {Attempt} of {MaxAttempts}",
-    orderId, attempt, maxAttempts);
-
-// GOOD — log exceptions with structured data
-logger.LogError(exception, "Failed to process order {OrderId}", orderId);
-```
+Wire logging first (you need logs to debug the rest), then health checks, then tracing.
 
 ### Correlation IDs
 
@@ -85,14 +55,11 @@ public class CorrelationIdMiddleware(RequestDelegate next)
     }
 }
 
-// Program.cs
+// Program.cs — register early so every downstream log carries the ID
 app.UseMiddleware<CorrelationIdMiddleware>();
 ```
 
-### OpenTelemetry Integration
-
-> For full OpenTelemetry setup (metrics, tracing, OTLP export), see the **opentelemetry** skill.
-> The logging skill focuses on structured logging with Serilog. OpenTelemetry handles the export pipeline.
+Why middleware: pushing the property once at the pipeline edge attaches it to every log event in the request scope — no per-call-site plumbing. Propagate the same header on outgoing `HttpClient` calls via a `DelegatingHandler` (see the **httpclient-factory** skill).
 
 ### Health Checks
 
@@ -118,17 +85,21 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 });
 ```
 
+Why two endpoints: liveness failing means "restart me"; readiness failing means "stop sending traffic". Conflating them makes a slow database restart your app in a loop.
+
+### Log-Level Strategy
+
+| Level | Use for | Environment default |
+|-------|---------|---------------------|
+| Debug | Diagnostic detail, payload dumps (never PII in prod) | Development only |
+| Information | Business events: order placed, job completed | Dev + staging |
+| Warning | Recoverable anomalies: retry fired, fallback used | Everywhere — production default |
+| Error | Failed operations that need attention | Everywhere |
+| Fatal/Critical | App cannot continue | Everywhere |
+
+Why Warning as the production default: Information-level request noise at scale costs real money in log storage and drowns the signals. Keep Information for genuine business events via namespace overrides (see the **serilog** skill's `MinimumLevel.Override` pattern).
+
 ## Anti-patterns
-
-### Don't Use String Interpolation in Log Messages
-
-```csharp
-// BAD — allocates string even if level is disabled, breaks structured logging
-logger.LogInformation($"Order {orderId} created for {customerId}");
-
-// GOOD — message template with named parameters
-logger.LogInformation("Order {OrderId} created for {CustomerId}", orderId, customerId);
-```
 
 ### Don't Log Sensitive Data
 
@@ -136,8 +107,8 @@ logger.LogInformation("Order {OrderId} created for {CustomerId}", orderId, custo
 // BAD — logging credentials
 logger.LogInformation("User logged in: {Email} with password {Password}", email, password);
 
-// GOOD — never log secrets, passwords, tokens, or PII
-logger.LogInformation("User logged in: {Email}", email);
+// GOOD — log identifiers, never secrets or PII at Information level
+logger.LogInformation("User {UserId} logged in", userId);
 ```
 
 ### Don't Skip Health Check Tags
@@ -151,14 +122,24 @@ app.MapHealthChecks("/health/live", new() { Predicate = _ => false });
 app.MapHealthChecks("/health/ready", new() { Predicate = c => c.Tags.Contains("ready") });
 ```
 
+### Don't Re-Implement What the Owning Skill Provides
+
+```csharp
+// BAD — hand-rolling Serilog bootstrap here from memory
+builder.Host.UseSerilog(...);  // legacy API — the serilog skill forbids this
+
+// GOOD — load the serilog skill and use its two-stage AddSerilog() bootstrap
+builder.Services.AddSerilog((services, lc) => lc.ReadFrom.Configuration(builder.Configuration)...);
+```
+
 ## Decision Guide
 
 | Scenario | Recommendation |
 |----------|---------------|
-| Application logging | Serilog with structured logging |
-| Distributed tracing | OpenTelemetry with OTLP exporter |
-| Custom business metrics | `IMeterFactory` + counters/histograms |
-| Request tracing | Correlation ID middleware |
-| Container health | `/health/live` and `/health/ready` endpoints |
-| Log storage | Seq (development), Elastic/Grafana (production) |
-| Log levels | Debug in dev, Information in staging, Warning in production |
+| Application logging setup | Load `serilog` — `AddSerilog()` two-stage bootstrap |
+| Distributed tracing / metrics | Load `opentelemetry` — OTLP exporter |
+| Custom business metrics | `IMeterFactory` + counters/histograms (`opentelemetry` skill) |
+| Request tracing | Correlation ID middleware (this skill) |
+| Container health | `/health/live` and `/health/ready` endpoints (this skill) |
+| Log storage | Seq (development), Elastic/Grafana/OTLP backend (production) |
+| Log levels | Debug in dev, Information in staging, Warning default in production |

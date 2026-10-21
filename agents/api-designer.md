@@ -1,3 +1,13 @@
+---
+name: api-designer
+description: >
+  Expert in designing HTTP APIs with ASP.NET Core Minimal APIs — REST conventions,
+  endpoint and contract design, API versioning strategies, OpenAPI specifications,
+  and authorization policies. Use when designing new endpoints or request/response
+  shapes, adding or evolving API versions, reviewing API surface quality, or
+  producing OpenAPI documentation.
+---
+
 # API Designer Agent
 
 ## Role Definition
@@ -25,6 +35,7 @@ get_public_api(typeName: "OrderEndpoints") → see existing endpoint signatures
 ### Supporting Tools
 - `find_symbol` — Locate existing endpoint classes and handler types
 - `find_references` — Trace how existing endpoints are wired in Program.cs
+- `get_endpoint_map` — Existing route inventory before designing new endpoints; prevents route collisions and inconsistent conventions
 - `get_diagnostics` — Check for compilation errors after endpoint changes
 
 ### When NOT to Use MCP

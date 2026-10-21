@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using CWM.RoslynNavigator.Responses;
 using ModelContextProtocol.Server;
@@ -43,7 +44,7 @@ public static class GetProjectGraphTool
         return JsonSerializer.Serialize(new ProjectGraphResult(solutionName, projects));
     }
 
-    private static string DetectTargetFramework(Microsoft.CodeAnalysis.Project project)
+    internal static string DetectTargetFramework(Microsoft.CodeAnalysis.Project project)
     {
         // Strategy 1: Parse from .csproj file (most reliable)
         if (project.FilePath is not null && File.Exists(project.FilePath))
@@ -55,10 +56,13 @@ public static class GetProjectGraphTool
                 if (!string.IsNullOrEmpty(tfm))
                     return tfm;
 
-                // Multi-target: return first framework from TargetFrameworks
-                var tfms = doc.Root?.Descendants("TargetFrameworks").FirstOrDefault()?.Value;
-                if (!string.IsNullOrEmpty(tfms))
-                    return tfms.Split(';', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "unknown";
+                // Multi-target: Roslyn loads one project flavor per TFM, so the csproj alone
+                // cannot tell us which flavor THIS Project instance is — picking the first
+                // entry would report e.g. net10.0 for the net8.0 flavor.
+                var tfms = doc.Root?.Descendants("TargetFrameworks").FirstOrDefault()?.Value
+                    ?.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                if (tfms is { Length: > 0 })
+                    return SelectMultiTargetTfm(project.Name, tfms, project.ParseOptions?.PreprocessorSymbolNames);
             }
             catch
             {
@@ -67,18 +71,91 @@ public static class GetProjectGraphTool
         }
 
         // Strategy 2: Check preprocessor symbols (e.g., NET10_0, NET8_0)
-        var preprocessorSymbol = project.ParseOptions?.PreprocessorSymbolNames
-            .Where(s => s.StartsWith("NET"))
-            .OrderByDescending(s => s.Length)
-            .FirstOrDefault();
-
-        if (preprocessorSymbol is not null)
+        if (project.ParseOptions?.PreprocessorSymbolNames is { } symbols)
         {
-            // Convert "NET10_0" to "net10.0", "NET8_0_OR_GREATER" stays as-is but we prefer exact match
-            var exact = preprocessorSymbol.Replace("_OR_GREATER", "");
-            return exact.ToLowerInvariant().Replace('_', '.');
+            var detected = DetectFromPreprocessorSymbols(symbols);
+            if (detected is not null)
+                return detected;
         }
 
         return "unknown";
+    }
+
+    /// <summary>
+    /// Picks the flavor-correct TFM for a multi-targeted project.
+    /// Preference order: the TFM embedded in Roslyn's flavor project name
+    /// ("MyProject(net8.0)" — exact, including OS-specific suffixes), then the
+    /// per-flavor preprocessor symbols, then the first list entry as a last resort.
+    /// </summary>
+    internal static string SelectMultiTargetTfm(
+        string projectName,
+        string[] tfms,
+        IEnumerable<string>? preprocessorSymbols)
+    {
+        var fromName = ExtractTfmFromProjectName(projectName);
+        if (fromName is not null && tfms.Contains(fromName, StringComparer.OrdinalIgnoreCase))
+            return fromName;
+
+        if (preprocessorSymbols is not null
+            && DetectFromPreprocessorSymbols(preprocessorSymbols) is { } fromSymbols)
+        {
+            // Symbols only carry the base TFM (net10.0), so match OS-specific list
+            // entries (net10.0-windows) by prefix.
+            var match = tfms.FirstOrDefault(t =>
+                t.Equals(fromSymbols, StringComparison.OrdinalIgnoreCase) ||
+                t.StartsWith(fromSymbols + "-", StringComparison.OrdinalIgnoreCase));
+            return match ?? fromSymbols;
+        }
+
+        return tfms[0];
+    }
+
+    /// <summary>
+    /// Extracts the TFM from a Roslyn multi-target flavor project name like "MyProject(net8.0)".
+    /// Returns null for regular project names.
+    /// </summary>
+    internal static string? ExtractTfmFromProjectName(string projectName)
+    {
+        var open = projectName.LastIndexOf('(');
+        if (open < 0 || !projectName.EndsWith(')'))
+            return null;
+
+        var tfm = projectName[(open + 1)..^1].Trim();
+        return tfm.Length > 0 ? tfm : null;
+    }
+
+    // Exact TFM symbols: NET10_0, NETSTANDARD2_0, NETCOREAPP3_1. Anchored so compat
+    // symbols like NETCOREAPP1_0_OR_GREATER (issue #19) never match.
+    private static readonly Regex ExactTfmSymbol =
+        new(@"^(NETSTANDARD|NETCOREAPP|NET)(\d+)_(\d+)$", RegexOptions.Compiled);
+
+    // .NET Framework symbols have no underscore: NET48, NET472
+    private static readonly Regex FrameworkTfmSymbol = new(@"^NET(\d{2,3})$", RegexOptions.Compiled);
+
+    internal static string? DetectFromPreprocessorSymbols(IEnumerable<string> symbols)
+    {
+        var symbolList = symbols.ToList();
+
+        // A compilation defines exactly one exact TFM symbol alongside many *_OR_GREATER
+        // compat symbols. Only the exact one names the real target framework.
+        var exact = symbolList
+            .Select(s => ExactTfmSymbol.Match(s))
+            .Where(m => m.Success)
+            .Select(m => (Prefix: m.Groups[1].Value, Major: int.Parse(m.Groups[2].Value), Minor: int.Parse(m.Groups[3].Value)))
+            .OrderByDescending(t => t.Major)
+            .ThenByDescending(t => t.Minor)
+            .Select(t => (string?)$"{t.Prefix.ToLowerInvariant()}{t.Major}.{t.Minor}")
+            .FirstOrDefault();
+
+        if (exact is not null)
+            return exact;
+
+        return symbolList
+            .Select(s => FrameworkTfmSymbol.Match(s))
+            .Where(m => m.Success)
+            .Select(m => m.Groups[1].Value)
+            .OrderByDescending(v => int.Parse(v.PadRight(3, '0')))
+            .Select(v => (string?)$"net{v}")
+            .FirstOrDefault();
     }
 }

@@ -22,13 +22,13 @@ This project uses [dotnet-claude-kit](https://github.com/codewithmukesh/dotnet-c
 Skills live in `skills/<skill-name>/SKILL.md` and follow the Agent Skills open standard.
 
 ### .NET Domain Skills
-api-versioning, architecture-advisor, aspire, authentication, caching, ci-cd, clean-architecture, configuration, ddd, dependency-injection, docker, ef-core, error-handling, httpclient-factory, logging, messaging, minimal-api, modern-csharp, openapi, opentelemetry, project-setup, project-structure, resilience, scaffolding, scalar, serilog, testing, vertical-slice, container-publish
+api-versioning, architecture-advisor, aspire, authentication, caching, ci-cd, clean-architecture, configuration, ddd, dependency-injection, docker, ef-core, error-handling, httpclient-factory, logging, messaging, minimal-api, modern-csharp, openapi, opentelemetry, project-setup, project-structure, resilience, scalar, serilog, testing, vertical-slice, container-publish
 
-### Workflow Skills
-code-review-workflow, convention-learner, migration-workflow, verification-loop, workflow-mastery
+### Workflow Skills (each registers a slash command and carries its methodology inline)
+arch-check, build-fix, checkpoint, code-review, de-sloppify, dotnet-init, health-check, migrate, outdated, plan, scaffold, security-scan, spec, tdd, verify, wrap-up
 
-### Meta & Productivity Skills
-80-20-review, context-discipline, learning-log, model-selection, self-correction-loop, split-memory, wrap-up-ritual
+### Workflow & Learning Skills
+convention-learner, workflow-mastery, instinct-system
 
 ## MCP Tools
 
@@ -56,7 +56,7 @@ Always prefer MCP tools over reading full source files to conserve context windo
 
 ## Rules
 
-Always-applied coding conventions live in `rules/dotnet/`:
+Always-applied coding conventions live in `.claude/rules/`:
 
 - `coding-style.md` -- C# 14 style, naming, file organization
 - `architecture.md` -- Dependency direction, feature folders, data access
@@ -67,3 +67,4 @@ Always-applied coding conventions live in `rules/dotnet/`:
 - `git-workflow.md` -- Conventional commits, atomic commits, branch safety
 - `agents.md` -- MCP-first tools, subagent routing, skill loading
 - `hooks.md` -- Format hooks, pre-commit, post-test analysis
+- `packages.md` -- Latest stable NuGet versions, central package management

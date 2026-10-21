@@ -33,9 +33,6 @@ public sealed class AuditService(TimeProvider clock)
 {
     public DateTimeOffset Now => clock.GetUtcNow();
 }
-
-// DON'T
-var now = DateTime.UtcNow;
 ```
 
 ## Resource Management
@@ -53,13 +50,6 @@ var order = await cache.GetOrCreateAsync(
     $"order:{id}",
     async ct => await db.Orders.FindAsync([id], ct),
     cancellationToken: ct);
-
-// DON'T — manual cache-aside with no stampede protection
-if (!memoryCache.TryGetValue(key, out var order))
-{
-    order = await db.Orders.FindAsync(id);
-    memoryCache.Set(key, order, TimeSpan.FromMinutes(5));
-}
 ```
 
 ## EF Core and Hot Paths

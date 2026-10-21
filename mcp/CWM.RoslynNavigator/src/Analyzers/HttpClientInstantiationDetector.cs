@@ -6,19 +6,20 @@ namespace CWM.RoslynNavigator.Analyzers;
 /// <summary>
 /// AP003: Detects direct <c>new HttpClient()</c> instantiation.
 /// Direct instantiation causes socket exhaustion. Use IHttpClientFactory instead.
+/// Test code is excluded — integration tests routinely construct a client per test against
+/// a local server, where socket exhaustion is not a concern.
 /// </summary>
-public sealed class HttpClientInstantiationDetector : IAntiPatternDetector
+internal sealed class HttpClientInstantiationDetector : IAntiPatternDetector
 {
     public bool RequiresSemanticModel => false;
 
-    public IEnumerable<AntiPatternViolation> Detect(SyntaxTree tree, SemanticModel? model, CancellationToken ct)
-    {
-        var root = tree.GetRoot(ct);
-        var filePath = tree.FilePath ?? "unknown";
+    public SourceKind AppliesTo => SourceKind.Production | SourceKind.Migration;
 
-        foreach (var creation in root.DescendantNodes().OfType<ObjectCreationExpressionSyntax>())
+    public IEnumerable<AntiPatternViolation> Detect(DetectionContext context)
+    {
+        foreach (var creation in context.Root.DescendantNodes().OfType<ObjectCreationExpressionSyntax>())
         {
-            ct.ThrowIfCancellationRequested();
+            context.Ct.ThrowIfCancellationRequested();
 
             var typeName = creation.Type.ToString();
             if (typeName is not ("HttpClient" or "System.Net.Http.HttpClient"))
@@ -26,14 +27,22 @@ public sealed class HttpClientInstantiationDetector : IAntiPatternDetector
 
             var line = creation.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
 
+            // A client built over an injected handler is the documented IHttpClientFactory
+            // composition pattern, not ad-hoc instantiation.
+            var confidence = creation.ArgumentList?.Arguments.Count > 0
+                ? AntiPatternConfidence.Medium
+                : AntiPatternConfidence.High;
+
             yield return new AntiPatternViolation(
                 Id: "AP003",
                 Severity: AntiPatternSeverity.Warning,
                 Message: "Direct HttpClient instantiation causes socket exhaustion under load",
-                File: filePath,
+                File: context.FilePath,
                 Line: line,
                 Snippet: $"new {typeName}()",
-                Suggestion: "Use IHttpClientFactory via dependency injection");
+                Suggestion: "Use IHttpClientFactory via dependency injection",
+                Confidence: confidence,
+                Member: AnalyzerHelpers.EnclosingMember(creation));
         }
     }
 }

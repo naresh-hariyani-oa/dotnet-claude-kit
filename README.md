@@ -3,18 +3,25 @@
   <p align="center">
     <strong>Make Claude Code an expert .NET developer.</strong>
     <br />
-    47 skills &bull; 10 specialist agents &bull; 15 slash commands &bull; 10 rules &bull; 5 project templates &bull; 15 MCP tools &bull; 7 hooks
+    47 skills &bull; 10 specialist agents &bull; 16 slash commands &bull; 10 rules &bull; 5 project templates &bull; 22 MCP tools &bull; automation hooks
     <br />
     Built for .NET 10 / C# 14. Architecture-aware. Token-efficient.
   </p>
 </p>
 
 <p align="center">
+  <a href="https://codewithmukesh.com/blog/dotnet-claude-kit-guide/">
+    <img src="https://img.shields.io/badge/%F0%9F%93%96%20Read%20the%20Complete%20Guide-codewithmukesh.com-512BD4?style=for-the-badge&logoColor=white" alt="Read the complete dotnet-claude-kit guide" />
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://codewithmukesh.com/blog/dotnet-claude-kit-guide/"><strong>📖 Full Guide</strong></a> &bull;
   <a href="#installation">Installation</a> &bull;
   <a href="#quick-start">Quick Start</a> &bull;
   <a href="#what-makes-this-10x">10x Features</a> &bull;
-  <a href="#slash-commands-16">Commands</a> &bull;
-  <a href="#skills-47">Skills</a> &bull;
+  <a href="#slash-commands-14">Commands</a> &bull;
+  <a href="#knowledge-skills-31">Skills</a> &bull;
   <a href="#agents-10">Agents</a> &bull;
   <a href="#rules-10">Rules</a> &bull;
   <a href="#templates-5">Templates</a> &bull;
@@ -23,6 +30,14 @@
 </p>
 
 ---
+
+> ### 📖 New here? Start with the guide
+>
+> **[How I Use dotnet-claude-kit: Making Claude Code Write Senior-Level .NET →](https://codewithmukesh.com/blog/dotnet-claude-kit-guide/)**
+>
+> The complete walkthrough: install and update the plugin, what happens in your first session, the everyday feature workflow, how the Roslyn MCP server cuts token usage, which commands keep a codebase healthy, plus FAQ and troubleshooting.
+>
+> *This README is the reference. The guide is how to actually use it.*
 
 ## The Problem
 
@@ -46,17 +61,22 @@ A curated knowledge and action layer that sits between Claude Code and your .NET
 
 ## What Makes This 10x
 
-v0.4.0 adds an **action layer** on top of the knowledge layer — Claude doesn't just know the right patterns, it actively applies them:
+An **action layer** on top of the knowledge layer — Claude doesn't just know the right patterns, it actively applies and enforces them:
 
 | Capability | What It Does |
 |-----------|-------------|
-| **Scaffolding** | One command → complete feature with Result pattern, validation (FluentValidation + filter wiring), OpenAPI metadata, pagination, CancellationToken, and tests. 9-point checklist enforced. All 4 architectures. |
-| **Interactive Setup** | Guided project initialization: architecture questionnaire → tech stack selection → customized CLAUDE.md generation. |
+| **Surgical Code Analysis** | 22 Roslyn-powered MCP tools with guaranteed bounded responses. `get_symbol_source` reads ONE method body instead of the whole file. `get_file_outline` shows what's in a file before reading it. `resolve_stack_trace` turns an exception into file:line in your own code. `analyze_change_impact` answers "what breaks if I change this?" in one call. Every list-returning tool reports `Truncated` — no tool can blow your context window. |
+| **Architecture Enforcement** | `/arch-check` verifies the code still matches its declared architecture (VSA, Clean, DDD, Modular Monolith): dependency direction, layer violations, module leaks, cycles — with file:line evidence and fixes. |
+| **Dependency Health** | `/outdated` reports stale packages, CVEs, and commercial-license traps (MediatR 13+, MassTransit 9+, FluentAssertions 8+, AutoMapper 15+) before an innocent update-all changes your legal position. |
+| **Security Mapping** | `get_endpoint_map` inventories every route with its auth posture (`authorized`/`anonymous`/`unmarked`) in one token-cheap call — `/security-scan` starts every auth audit there. |
+| **DI X-Ray** | `get_di_registrations` maps every service registration with lifetimes, duplicate detection, and captive-dependency risks (singleton holding scoped). |
+| **Agents That Learn** | Specialist agents carry `memory: project` — the code reviewer, architect, and security auditor learn your conventions across sessions instead of rediscovering them. The reviewer is tool-enforced read-only; the cleanup agent works in an isolated worktree. |
+| **Scaffolding** | One command → complete feature with Result pattern, validation, OpenAPI metadata, pagination, CancellationToken, and tests. 9-point checklist enforced. All 4 architectures. |
 | **Health Check** | Automated codebase analysis using MCP tools: anti-pattern scan, diagnostics, dead code detection, test coverage → graded report card. |
 | **PR Review** | Multi-dimensional code review: anti-patterns, diagnostics, API surface changes, blast radius, architecture compliance, test coverage. |
 | **Convention Learning** | Detects project-specific patterns (naming, structure, modifiers) and enforces them in new code. Adapts to your codebase. |
-| **Smart Tools** | 15 Roslyn-powered MCP tools including dependency graphs, circular dependency detection, dead code finder, and test coverage mapping. |
-| **Active Hooks** | 6 hooks for automated quality: format on edit, anti-pattern checks on commit, test result analysis, structure validation. |
+| **Active Hooks** | Automated quality scripts — format on edit, destructive-command guard, restore on .csproj change — tested on Windows and Linux in CI. |
+| **Always Current** | Every package recommendation verified against NuGet with licensing-trap warnings, and a .NET 11 preview watch so guidance never rots. |
 
 ## Why dotnet-claude-kit?
 
@@ -73,14 +93,18 @@ v0.4.0 adds an **action layer** on top of the knowledge layer — Claude doesn't
 
 ## Installation
 
+> Prefer a narrated walkthrough with screenshots and troubleshooting? Read **[the complete installation and usage guide](https://codewithmukesh.com/blog/dotnet-claude-kit-guide/)**.
+
 ### Plugin Install (Recommended)
 
-Install as a Claude Code plugin — all 47 skills, 10 agents, 16 commands, 10 rules, hooks, and MCP config activate globally:
+Install as a Claude Code plugin — all 47 skills (including 16 slash-command workflows), 10 agents, hooks, and MCP config activate globally. The 10 rules ship in this repo for you to copy into your project's `.claude/rules/`:
 
 ```bash
 # In your terminal — install the Roslyn MCP server
 dotnet tool install -g CWM.RoslynNavigator
 ```
+
+> **macOS/Linux**: If the server fails with "No .NET SDKs were found", set `DOTNET_ROOT` to your .NET installation root (e.g. `/usr/local/share/dotnet`). See the [MCP server troubleshooting guide](mcp/CWM.RoslynNavigator/README.md#troubleshooting).
 
 Then inside a Claude Code session:
 
@@ -127,7 +151,7 @@ Replace `[ProjectName]`, update tech stack, choose your architecture.
 
 </details>
 
-Start Claude Code — 47 skills, 10 agents, 16 commands, 10 rules, and 15 MCP tools activate automatically.
+Start Claude Code — 47 skills, 10 agents, and 22 MCP tools activate automatically. Copy the 10 rules into your project's `.claude/rules/` to make them always-loaded.
 
 That's it. Claude now writes .NET code the way a senior .NET engineer would.
 
@@ -217,30 +241,32 @@ public sealed class OrderEndpoints : IEndpointGroup
 
 ## Slash Commands (16)
 
-Shortcut workflows that orchestrate skills and agents. Type the command and Claude handles the rest.
+Shortcut workflows that orchestrate skills and agents. Type the command and Claude handles the rest. These are workflow skills — each lives at `skills/<name>/SKILL.md`, registers its `/name` automatically, and carries its methodology inline (no separate knowledge twin to load).
 
-| Command | Purpose | Invokes |
-|---------|---------|---------|
+| Command | Purpose | Works With |
+|---------|---------|------------|
 | `/dotnet-init` | Project setup (existing or greenfield) — detects or scaffolds, then generates CLAUDE.md | project-setup skill, dotnet-architect agent |
-| `/plan` | Architecture-aware planning for non-trivial tasks | architecture-advisor skill, dotnet-architect agent |
-| `/verify` | 7-phase verification: build → analyzers → antipatterns → tests → security → format → diff | verification-loop skill |
+| `/spec` | Relentless questioning until human + AI agree on a persisted spec (`docs/specs/`) | feeds /plan and /tdd |
+| `/plan` | Architecture-aware planning — consumes approved specs | architecture-advisor skill, dotnet-architect agent |
+| `/verify` | 7-phase verification: build → analyzers → antipatterns → tests → security → format → diff | — |
 | `/tdd` | Red-green-refactor with xUnit + Testcontainers | testing skill, test-engineer agent |
-| `/scaffold` | Architecture-aware feature scaffolding (all 4 architectures) | scaffolding skill, dotnet-architect agent |
-| `/code-review` | MCP-powered multi-dimensional code review | code-review-workflow skill, code-reviewer agent |
-| `/build-fix` | Autonomous build error fixing (iterative loop) | autonomous-loops skill, build-error-resolver agent |
-| `/checkpoint` | Save progress: commit + handoff note | wrap-up-ritual skill |
-| `/security-scan` | OWASP + secrets + vulnerable dependency audit | security-scan skill, security-auditor agent |
-| `/migrate` | Safe EF Core migration workflow | migration-workflow skill, ef-core-specialist agent |
-| `/health-check` | Project health assessment with letter grades (A-F) | health-check skill, code-reviewer agent |
-| `/de-sloppify` | Systematic cleanup: format → dead code → analyzers → sealed | de-sloppify skill, refactor-cleaner agent |
-| `/wrap-up` | Session ending ritual with handoff note | wrap-up-ritual skill |
-| `/instinct-status` | Show learned instincts with confidence scores | instinct-system skill |
-| `/instinct-export` | Export instincts to shareable format | instinct-system skill |
-| `/instinct-import` | Import instincts from another project | instinct-system skill |
+| `/scaffold` | Architecture-aware feature scaffolding (all 4 architectures, per-architecture templates included) | dotnet-architect agent |
+| `/code-review` | MCP-powered, blast-radius-prioritized code review | code-reviewer agent |
+| `/build-fix` | Bounded build-fix and test-fix loops with progress detection | build-error-resolver agent |
+| `/checkpoint` | Mid-session save: commit + brief handoff note | — |
+| `/security-scan` | OWASP + secrets + vulnerable dependency audit | security-auditor agent |
+| `/migrate` | EF Core schema, .NET version, and NuGet migrations with rollback | ef-core-specialist agent |
+| `/health-check` | Project health assessment with letter grades (A-F) | code-reviewer agent |
+| `/de-sloppify` | Systematic cleanup: format → dead code → analyzers → sealed | refactor-cleaner agent |
+| `/wrap-up` | Session handoff lifecycle: end-of-session ritual + session-start loading | instinct-system skill |
+| `/outdated` | Dependency health: outdated packages, CVEs, and commercial-license traps | get_nuget_packages MCP tool |
+| `/arch-check` | Architecture conformance: dependency direction, layer violations, module leaks | get_project_graph MCP tool |
+
+Instinct operations (status, export, import) are modes of the [instinct-system](skills/instinct-system/SKILL.md) skill — say "show instincts", "export instincts", or "import instincts".
 
 ## Rules (10)
 
-Always-loaded conventions that apply to every interaction. Zero configuration — they're active as soon as the plugin is installed.
+Project-level conventions that apply to every interaction once loaded. Rules ship in this repo (and via the templates) — copy them into your project's `.claude/rules/` to make them always-loaded.
 
 | Rule | Enforces |
 |------|----------|
@@ -255,26 +281,23 @@ Always-loaded conventions that apply to every interaction. Zero configuration �
 | [hooks](.claude/rules/hooks.md) | Auto-accept formatting, never skip pre-commit hooks |
 | [packages](.claude/rules/packages.md) | Always use latest stable NuGet versions, never rely on training data versions |
 
-## Skills (47)
+## Knowledge Skills (31)
 
-Code-heavy reference files that teach Claude .NET best practices. Each skill is under 400 lines with concrete code examples, anti-patterns (BAD/GOOD comparisons), and decision guides.
+Code-heavy reference files that teach Claude .NET best practices. Each skill is under 400 lines with concrete code examples, anti-patterns (BAD/GOOD comparisons), and decision guides. (The other 16 of the 47 skills are the workflow orchestrators documented under [Slash Commands](#slash-commands-16).)
 
 | Category | Skills | What Claude Learns |
 |----------|--------|--------------------|
 | **Architecture** | [architecture-advisor](skills/architecture-advisor/SKILL.md), [vertical-slice](skills/vertical-slice/SKILL.md), [clean-architecture](skills/clean-architecture/SKILL.md), [ddd](skills/ddd/SKILL.md), [project-structure](skills/project-structure/SKILL.md) | Ask before recommending. VSA for CRUD, CA for medium complexity, DDD for rich domains, Modular Monolith for bounded contexts. |
 | **Core Language** | [modern-csharp](skills/modern-csharp/SKILL.md) | Primary constructors, collection expressions, `field` keyword, records, pattern matching, spans |
-| **Web / API** | [minimal-api](skills/minimal-api/SKILL.md), [api-versioning](skills/api-versioning/SKILL.md), [authentication](skills/authentication/SKILL.md) | `MapGroup`, `TypedResults`, endpoint filters, JWT/OIDC, Asp.Versioning |
+| **Web / API** | [minimal-api](skills/minimal-api/SKILL.md), [api-versioning](skills/api-versioning/SKILL.md), [authentication](skills/authentication/SKILL.md), [openapi](skills/openapi/SKILL.md), [scalar](skills/scalar/SKILL.md), [httpclient-factory](skills/httpclient-factory/SKILL.md) | `MapGroup`, `TypedResults`, endpoint filters, JWT/OIDC, Asp.Versioning, built-in OpenAPI, typed HTTP clients |
 | **Data** | [ef-core](skills/ef-core/SKILL.md) | No repository wrappers. Compiled queries, interceptors, `ExecuteUpdateAsync`, value converters |
 | **Resilience** | [error-handling](skills/error-handling/SKILL.md), [resilience](skills/resilience/SKILL.md), [caching](skills/caching/SKILL.md), [messaging](skills/messaging/SKILL.md) | Result pattern, Polly v8 pipelines, `HybridCache`, Wolverine/MassTransit, outbox, sagas |
-| **Observability** | [logging](skills/logging/SKILL.md) | Serilog structured logging, OpenTelemetry, correlation IDs |
+| **Observability** | [logging](skills/logging/SKILL.md), [serilog](skills/serilog/SKILL.md), [opentelemetry](skills/opentelemetry/SKILL.md) | Health checks and correlation IDs, Serilog structured logging, OpenTelemetry traces and metrics |
 | **Testing** | [testing](skills/testing/SKILL.md) | xUnit v3, `WebApplicationFactory`, `Testcontainers`, Verify snapshots |
-| **DevOps** | [docker](skills/docker/SKILL.md), [ci-cd](skills/ci-cd/SKILL.md), [aspire](skills/aspire/SKILL.md) | Multi-stage builds, GitHub Actions, .NET Aspire orchestration |
+| **DevOps** | [docker](skills/docker/SKILL.md), [container-publish](skills/container-publish/SKILL.md), [ci-cd](skills/ci-cd/SKILL.md), [aspire](skills/aspire/SKILL.md) | Multi-stage builds, Dockerfile-less SDK publishing, GitHub Actions, .NET Aspire orchestration |
 | **Cross-cutting** | [dependency-injection](skills/dependency-injection/SKILL.md), [configuration](skills/configuration/SKILL.md) | Keyed services, Options pattern, secrets management |
-| **Workflow** | [workflow-mastery](skills/workflow-mastery/SKILL.md) | Parallel worktrees, plan mode strategy, verification loops, auto-format hooks, permission setup, subagent patterns |
-| **Workflows & Automation** | [scaffolding](skills/scaffolding/SKILL.md), [project-setup](skills/project-setup/SKILL.md), [code-review-workflow](skills/code-review-workflow/SKILL.md), [migration-workflow](skills/migration-workflow/SKILL.md), [convention-learner](skills/convention-learner/SKILL.md) | Feature scaffolding for all architectures, interactive project init, MCP-driven PR reviews, safe migration workflows, convention detection and enforcement |
-| **Verification & Quality** | [verification-loop](skills/verification-loop/SKILL.md), [de-sloppify](skills/de-sloppify/SKILL.md), [health-check](skills/health-check/SKILL.md), [security-scan](skills/security-scan/SKILL.md) | 7-phase verification pipeline, systematic cleanup, graded health assessment, deep security scanning |
-| **Intelligence & Learning** | [instinct-system](skills/instinct-system/SKILL.md), [session-management](skills/session-management/SKILL.md), [autonomous-loops](skills/autonomous-loops/SKILL.md) | Confidence-scored pattern learning, session continuity, bounded iterative fix loops |
-| **Meta & Productivity** | [self-correction-loop](skills/self-correction-loop/SKILL.md), [wrap-up-ritual](skills/wrap-up-ritual/SKILL.md), [context-discipline](skills/context-discipline/SKILL.md), [model-selection](skills/model-selection/SKILL.md), [80-20-review](skills/80-20-review/SKILL.md), [split-memory](skills/split-memory/SKILL.md), [learning-log](skills/learning-log/SKILL.md) | Self-improving correction capture, structured session handoffs, token budget management, strategic model selection, focused code review, modular CLAUDE.md, insight documentation |
+| **Project Setup** | [project-setup](skills/project-setup/SKILL.md), [convention-learner](skills/convention-learner/SKILL.md) | Solution scaffolding, convention detection and enforcement |
+| **Workflow & Learning** | [workflow-mastery](skills/workflow-mastery/SKILL.md), [instinct-system](skills/instinct-system/SKILL.md) | Parallel worktrees, plan mode strategy, subagent patterns, context discipline; confidence-scored instincts, correction capture, discovery logging |
 
 ## Agents (10)
 
@@ -326,6 +349,11 @@ Token-efficient codebase navigation via Roslyn semantic analysis. Instead of Cla
 | `detect_circular_dependencies` | Project and type-level cycles | Manually tracing references |
 | `get_dependency_graph` | Method call chain visualization | Reading multiple files and tracing |
 | `get_test_coverage_map` | Heuristic test coverage mapping | Searching for test files manually |
+| `get_symbol_source` | Exact source of ONE member (bounded, capped) | Reading the whole file for one method |
+| `get_file_outline` | Type/member skeleton of a file, no bodies | Reading the file to see what's in it |
+| `get_nuget_packages` | PackageReference inventory with CPM awareness | Parsing csproj/props files manually |
+| `get_endpoint_map` | Route inventory with auth posture per endpoint | Grepping Map*/controllers by hand |
+| `get_di_registrations` | DI map: lifetimes, duplicates, captive risks | Reading Program.cs and extensions |
 
 The MCP server starts automatically via `.mcp.json`. No manual setup required.
 
@@ -341,21 +369,23 @@ Living reference documents updated per .NET release:
 | [common-antipatterns](knowledge/common-antipatterns.md) | Patterns Claude should never generate |
 | [package-recommendations](knowledge/package-recommendations.md) | Vetted NuGet packages with rationale and "when NOT to use" |
 | [breaking-changes](knowledge/breaking-changes.md) | .NET migration gotchas |
+| [common-infrastructure](knowledge/common-infrastructure.md) | Copy-paste implementations: Result, ValidationFilter, IExceptionHandler, IEndpointGroup + MapEndpoints, pagination |
+| [mediatr-to-mediator-migration](knowledge/mediatr-to-mediator-migration.md) | Step-by-step MediatR → Mediator (MIT, source-generated) migration guide |
 | [decisions/](knowledge/decisions/) | Architecture Decision Records explaining every default |
 
-## Hooks (7)
+## Hooks & Automation Scripts (7)
 
-Automated workflow integration:
+Three Claude Code hooks run automatically (declared in `hooks/hooks.json`); the rest are git pre-commit hooks and workflow utilities — see [hooks/README.md](hooks/README.md) for setup:
 
-| Hook | Event | What It Does |
+| Script | Kind | What It Does |
 |------|-------|-------------|
-| `pre-bash-guard.sh` | PreToolUse (Bash) | Blocks destructive git ops (force push, reset --hard), warns on risky commands |
-| `pre-commit-format.sh` | Pre-commit | `dotnet format --verify-no-changes` ensures consistent formatting |
-| `pre-commit-antipattern.sh` | Pre-commit | Detects DateTime.Now, async void, new HttpClient() in staged files |
-| `post-scaffold-restore.sh` | Post-file-edit (*.csproj) | `dotnet restore` after project file changes |
-| `post-edit-format.sh` | Post-file-edit (*.cs) | Auto-formats C# files after edits |
-| `post-test-analyze.sh` | Post-test | Parses test results and outputs actionable summary |
-| `pre-build-validate.sh` | Pre-build | Validates project structure (solution file, Directory.Build.props, test projects) |
+| `pre-bash-guard.sh` | Claude Code hook — PreToolUse (Bash) | Blocks destructive git ops (force push, reset --hard), warns on risky commands |
+| `post-edit-format.sh` | Claude Code hook — PostToolUse (*.cs) | Auto-formats C# files after edits |
+| `post-scaffold-restore.sh` | Claude Code hook — PostToolUse (*.csproj) | `dotnet restore` after project file changes |
+| `pre-commit-format.sh` | Git pre-commit (manual install) | `dotnet format --verify-no-changes` ensures consistent formatting |
+| `pre-commit-antipattern.sh` | Git pre-commit (manual install) | Detects `async void`, sync-over-async, `new HttpClient()`, and `DateTime.Now` in the lines a commit adds ([why text, not an analyzer](knowledge/decisions/006-three-tier-antipattern-detection.md)) |
+| `post-test-analyze.sh` | Utility (pipe test output) | Parses test results and outputs actionable summary |
+| `pre-build-validate.sh` | Utility (run before builds) | Validates project structure (solution file, Directory.Build.props, test projects) |
 
 ## Defaults & Decisions
 
@@ -379,19 +409,20 @@ dotnet-claude-kit/
 ├── CLAUDE.md                    # Instructions for developing THIS repo
 ├── AGENTS.md                    # Agent routing & orchestration
 ├── agents/                      # 10 specialist agents
-├── skills/                      # 47 skills
-├── commands/                    # 15 slash commands
+├── skills/                      # 47 skills (incl. 16 slash-command workflows)
 ├── .claude/rules/               # 10 always-loaded rules
 ├── templates/                   # 5 drop-in CLAUDE.md templates
 ├── knowledge/                   # Living reference documents + ADRs
-├── mcp/CWM.RoslynNavigator/     # Roslyn MCP server (15 tools)
+├── mcp/CWM.RoslynNavigator/     # Roslyn MCP server (22 tools)
 ├── mcp-configs/                 # MCP server config templates
-├── hooks/                       # 7 Claude Code hooks
+├── hooks/                       # Claude Code hooks + git hooks + utilities
 ├── docs/                        # Shorthand + longform guides
 ├── .mcp.json                    # MCP server registration
 ├── .claude-plugin/              # Plugin marketplace manifests
 ├── .cursor/rules/               # Cursor IDE compatibility
 ├── .codex/                      # Codex CLI compatibility
+├── opencode.json                # OpenCode config (MCP + rules)
+├── .opencode/                   # OpenCode compatibility
 └── .github/workflows/           # CI validation
 ```
 
@@ -404,11 +435,13 @@ dotnet-claude-kit works with multiple AI coding tools:
 | **Claude Code** | `.claude-plugin/plugin.json` | Full integration: skills, agents, commands, rules, hooks, MCP |
 | **Cursor** | `.cursor/rules/dotnet-rules.md` | Consolidated .NET rules for Cursor IDE |
 | **Codex CLI** | `.codex/AGENTS.md` | Agent configuration pointing to skills and agents |
+| **OpenCode** | `opencode.json` + `.opencode/AGENTS.md` | Roslyn MCP server, consolidated rules, and agent/skill catalog |
 
 ## Documentation
 
 | Guide | For | Content |
 |-------|-----|---------|
+| **[📖 How I Use dotnet-claude-kit](https://codewithmukesh.com/blog/dotnet-claude-kit-guide/)** | **Start here** | **Install, update, first session, everyday feature workflow, Roslyn MCP token savings, health commands, FAQ, troubleshooting** |
 | [Shorthand Guide](docs/shorthand-guide.md) | Quick reference | All commands, skills, agents, hooks, MCP tools with cross-reference matrix |
 | [Longform Guide](docs/longform-guide.md) | Deep dive | Workflows, token optimization, autonomous patterns, troubleshooting |
 
@@ -421,6 +454,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how to add skills, agents, commands, 
 [MIT](LICENSE)
 
 ---
+
+<p align="center">
+  <strong>📖 Read the complete guide: <a href="https://codewithmukesh.com/blog/dotnet-claude-kit-guide/">How I Use dotnet-claude-kit</a></strong>
+</p>
 
 <p align="center">
   Built by <a href="https://codewithmukesh.com">Mukesh Murugan</a> &bull; Powered by Claude Code

@@ -1,6 +1,6 @@
 # What's New in .NET 10 and C# 14
 
-> Last updated: February 2026 — .NET 10 release
+> Last updated: 2026-07-22 — .NET 10 GA / .NET 11 preview 6
 
 ## C# 14 Language Features
 
@@ -75,21 +75,40 @@ Source generators can now use partial properties.
 - **Arm64 optimizations** — Continued investment in ARM performance
 
 ### Container & Deployment
-- **Smaller container images** — `mcr.microsoft.com/dotnet/nightly/aspnet:10.0` with reduced layers
+- **Smaller container images** — `mcr.microsoft.com/dotnet/aspnet:10.0` with reduced layers
 - **Non-root by default** — Container images run as non-root user
-- **.NET Aspire 9+** — Improved orchestration, dashboard, and service discovery
+- **Aspire 13.x** — Rebranded polyglot "Aspire" (aspire.dev): first-class Python/JS/TypeScript AppHosts, `aspire` CLI built for AI coding agents, single-file AppHost via `#:package` directives
 
 ## Key NuGet Ecosystem Updates
 
 | Package | Version | Notable Changes |
 |---------|---------|----------------|
-| MediatR | 13.x | Improved performance, better DI integration |
+| Mediator (martinothamar) | 3.x | Kit default mediator — source-generated, MIT, Native AOT compatible |
+| MediatR | 14.x | ⚠️ Commercial/RPL-1.5 dual license (Lucky Penny) since v13; ≤12.x stays MIT |
 | FluentValidation | 12.x | .NET 10 support, better minimal API integration |
-| Serilog | 4.x | `LoggerConfiguration` improvements |
-| MassTransit | 9.x | Better Aspire integration, improved outbox |
-| xUnit | v3 | New architecture, `IAsyncLifetime` improvements |
+| Serilog.AspNetCore | 10.x | Aligned with .NET 10 (Serilog core stays 4.x) |
+| Wolverine | 6.x | Kit default messaging — MIT; v6 changed defaults/removed APIs |
+| MassTransit | 9.x | ⚠️ Commercial license from v9; v8 Apache 2.0, patched only through end of 2026 |
+| xUnit (`xunit.v3`) | 3.x | New architecture, `IAsyncLifetime` improvements |
 | Testcontainers | 4.x | Faster startup, more container modules |
 | Polly | 8.x | Resilience pipelines (replaces policies) |
+
+## .NET 11 Preview Watch (GA: November 10, 2026 — STS)
+
+> Preview 6 shipped 2026-07-15. .NET 10 remains the latest GA and the kit's target until .NET 11 ships. Do not generate net11.0 / C# 15 code unless the user explicitly targets previews.
+
+### C# 15 (preview, ships with .NET 11)
+
+- **Union types** — `public union Pet(Cat, Dog, Bird);` with implicit conversions and exhaustive `switch`
+- **Closed hierarchies** — `closed` modifier fixes direct descendants at compile time; exhaustive switching without a default arm
+- **Collection expression arguments** — `[with(capacity: 16), .. values]` passes constructor args (capacity, comparers) inside collection expressions
+- **Extension indexers** — indexers in `extension` blocks, completing the C# 14 extension-members story
+- **Memory-safety model (first step)** — pointer declaration, `&`, `fixed`, and `sizeof` no longer require `unsafe` under preview LangVersion; dereferencing still does
+
+### Platform
+
+- **EF Core 11** — preview 6 available alongside runtime previews
+- **Container images 15–33% smaller** — e.g., Alpine image down ~124 MB (30.9%), Azure Linux down 32.7%
 
 ## Migration Notes (.NET 9 to .NET 10)
 

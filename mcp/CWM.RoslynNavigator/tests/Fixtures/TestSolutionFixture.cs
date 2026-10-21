@@ -21,7 +21,7 @@ public class TestSolutionFixture : IAsyncLifetime
         EnsureMSBuildRegistered();
 
         var logger = NullLoggerFactory.Instance.CreateLogger<WorkspaceManager>();
-        WorkspaceManager = new WorkspaceManager(logger);
+        WorkspaceManager = new WorkspaceManager(logger, TimeProvider.System);
 
         var solutionPath = FindSampleSolutionPath();
         await WorkspaceManager.LoadSolutionAsync(solutionPath);
@@ -44,6 +44,17 @@ public class TestSolutionFixture : IAsyncLifetime
             }
         }
     }
+
+    /// <summary>
+    /// Locates the sample solution for tests that need their own isolated WorkspaceManager
+    /// instead of the shared one (e.g. reload behaviour, which mutates workspace state).
+    /// </summary>
+    public static string SampleSolutionPath => FindSampleSolutionPath();
+
+    /// <summary>
+    /// Registers MSBuild for tests that construct a WorkspaceManager directly.
+    /// </summary>
+    public static void RegisterMSBuild() => EnsureMSBuildRegistered();
 
     private static string FindSampleSolutionPath()
     {

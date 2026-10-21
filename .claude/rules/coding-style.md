@@ -47,9 +47,6 @@ public sealed record Money(decimal Amount, string Currency);
 // DO
 List<int> ids = [1, 2, 3];
 int[] arr = [4, 5, 6];
-
-// DON'T
-var ids = new List<int> { 1, 2, 3 };
 ```
 
 - **Pattern matching over if-else chains.** Switch expressions and `is` patterns are more readable and exhaustiveness-checked.
@@ -62,12 +59,6 @@ var label = status switch
     OrderStatus.Shipped => "On the way",
     _ => "Unknown"
 };
-
-// DON'T
-string label;
-if (status == OrderStatus.Pending) label = "Awaiting payment";
-else if (status == OrderStatus.Shipped) label = "On the way";
-else label = "Unknown";
 ```
 
 ## Naming and Modifiers

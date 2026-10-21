@@ -70,7 +70,7 @@ The highest-value test pattern. Tests the full HTTP pipeline.
 public class ApiFixture : WebApplicationFactory<Program>, IAsyncLifetime
 {
     private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder()
-        .WithImage("postgres:17")
+        .WithImage("postgres:18")
         .Build();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -84,7 +84,8 @@ public class ApiFixture : WebApplicationFactory<Program>, IAsyncLifetime
         });
     }
 
-    public async Task InitializeAsync()
+    // xUnit v3: IAsyncLifetime.InitializeAsync returns ValueTask (v2 used Task)
+    public async ValueTask InitializeAsync()
     {
         await _postgres.StartAsync();
 
@@ -94,7 +95,9 @@ public class ApiFixture : WebApplicationFactory<Program>, IAsyncLifetime
         await db.Database.MigrateAsync();
     }
 
-    public new async Task DisposeAsync()
+    // xUnit v3: IAsyncLifetime inherits IAsyncDisposable — override the
+    // ValueTask DisposeAsync that WebApplicationFactory already provides
+    public override async ValueTask DisposeAsync()
     {
         await _postgres.DisposeAsync();
         await base.DisposeAsync();
@@ -151,7 +154,7 @@ private readonly MsSqlContainer _mssql = new MsSqlBuilder()
 
 // For PostgreSQL
 private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder()
-    .WithImage("postgres:17")
+    .WithImage("postgres:18")
     .Build();
 
 // For Redis

@@ -8,7 +8,7 @@ namespace CWM.RoslynNavigator;
 /// This runs the potentially slow solution loading in the background so the
 /// MCP server can start accepting connections immediately.
 /// </summary>
-public class WorkspaceInitializer(
+internal sealed class WorkspaceInitializer(
     WorkspaceManager workspaceManager,
     ILogger<WorkspaceInitializer> logger) : BackgroundService
 {

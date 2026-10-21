@@ -160,31 +160,16 @@ app.MapPost("/orders", (CreateOrderRequest request, ISender sender) => ...);
 
 ### Endpoint Filters
 
-Filters are the minimal API equivalent of action filters. Use them for cross-cutting concerns.
+Filters are the minimal API equivalent of action filters. Use them for cross-cutting concerns like validation, logging, and idempotency checks.
+
+The canonical `ValidationFilter<TRequest>` implementation (FluentValidation, resolves the validator from DI and skips gracefully when none is registered) lives in the **error-handling** skill — use that one, don't re-implement it per project.
 
 ```csharp
-// Validation filter
-public class ValidationFilter<TRequest>(IValidator<TRequest> validator) : IEndpointFilter
-{
-    public async ValueTask<object?> InvokeAsync(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
-    {
-        var request = context.Arguments.OfType<TRequest>().FirstOrDefault();
-        if (request is null)
-            return TypedResults.BadRequest("Request body is required.");
-
-        var validationResult = await validator.ValidateAsync(request);
-        if (!validationResult.IsValid)
-            return TypedResults.ValidationProblem(validationResult.ToDictionary());
-
-        return await next(context);
-    }
-}
-
-// Apply to an endpoint
+// Apply the canonical filter (see error-handling skill) to a mutating endpoint
 group.MapPost("/", CreateOrder)
     .AddEndpointFilter<ValidationFilter<CreateOrderRequest>>();
 
-// Apply to a group (affects all endpoints in the group)
+// Apply a filter to a group (affects all endpoints in the group)
 group.AddEndpointFilter<LoggingFilter>();
 ```
 

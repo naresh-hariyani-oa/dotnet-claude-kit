@@ -10,10 +10,11 @@ namespace CWM.RoslynNavigator.Tools;
 [McpServerToolType]
 public static class FindImplementationsTool
 {
-    [McpServerTool(Name = "find_implementations"), Description("Find all types that implement an interface or derive from a base class.")]
+    [McpServerTool(Name = "find_implementations"), Description("Find all types that implement an interface or derive from a base class. Each result carries IsGenerated so generated implementations can be skipped.")]
     public static async Task<string> ExecuteAsync(
         WorkspaceManager workspace,
         [Description("The interface or base class name to find implementations for")] string interfaceName,
+        [Description("Maximum results to return. TotalFound in the response reports the full count; re-query with a higher value if it exceeds Count.")] int maxResults = 50,
         CancellationToken ct = default)
     {
         var notReady = await workspace.EnsureReadyOrStatusAsync(ct);
@@ -21,40 +22,42 @@ public static class FindImplementationsTool
 
         var solution = workspace.GetSolution();
         if (solution is null)
-            return JsonSerializer.Serialize(new ImplementationsResult([]));
+            return Serialize(Paging.Empty<ImplementationInfo>(maxResults));
 
-        var symbol = await SymbolResolver.ResolveSymbolAsync(workspace, interfaceName, ct: ct);
+        var resolved = await SymbolResolver.ResolveOrErrorAsync(workspace, interfaceName, ct: ct);
+        if (resolved.Failed) return resolved.Error;
+
+        var symbol = resolved.Symbol;
+
         if (symbol is not INamedTypeSymbol typeSymbol)
-            return JsonSerializer.Serialize(new ImplementationsResult([]));
+            return JsonSerializer.Serialize(new ErrorResponse(
+                ErrorCodes.WrongSymbolKind,
+                $"'{interfaceName}' resolved to a {SymbolResolver.GetKindString(symbol)}, not an interface or class."));
 
-        var results = new List<ImplementationInfo>();
+        var implementations = typeSymbol.TypeKind == TypeKind.Interface
+            ? await SymbolFinder.FindImplementationsAsync(typeSymbol, solution, cancellationToken: ct)
+            : await SymbolFinder.FindDerivedClassesAsync(typeSymbol, solution, cancellationToken: ct);
 
-        if (typeSymbol.TypeKind == TypeKind.Interface)
+        var generated = new GeneratedCodeIndex(workspace);
+        var all = new List<ImplementationInfo>();
+
+        foreach (var impl in implementations)
         {
-            var implementations = await SymbolFinder.FindImplementationsAsync(typeSymbol, solution, cancellationToken: ct);
-            foreach (var impl in implementations)
+            var location = SymbolResolver.GetLocation(impl);
+            if (location.HasValue)
             {
-                var location = SymbolResolver.GetLocation(impl);
-                if (location.HasValue)
-                {
-                    results.Add(new ImplementationInfo(impl.Name, location.Value.File, location.Value.Line));
-                }
-            }
-        }
-        else
-        {
-            // Find derived classes for non-interface types
-            var derived = await SymbolFinder.FindDerivedClassesAsync(typeSymbol, solution, cancellationToken: ct);
-            foreach (var d in derived)
-            {
-                var location = SymbolResolver.GetLocation(d);
-                if (location.HasValue)
-                {
-                    results.Add(new ImplementationInfo(d.Name, location.Value.File, location.Value.Line));
-                }
+                all.Add(new ImplementationInfo(
+                    impl.Name,
+                    workspace.ToRelativePath(location.Value.File),
+                    location.Value.Line,
+                    generated.IsGenerated(impl, ct)));
             }
         }
 
-        return JsonSerializer.Serialize(new ImplementationsResult(results));
+        return Serialize(Paging.Apply(all, maxResults));
     }
+
+    private static string Serialize(Paging.Page<ImplementationInfo> page) =>
+        JsonSerializer.Serialize(new ImplementationsResult(
+            page.Items, page.Count, page.TotalFound, page.Truncated, page.Limit));
 }

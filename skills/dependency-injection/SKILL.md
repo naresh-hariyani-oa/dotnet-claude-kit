@@ -176,4 +176,5 @@ builder.Services.AddScoped<OrderService>();
 | Cross-cutting behavior | Decorator pattern |
 | Convention-based registration | Scrutor |
 | Runtime implementation selection | Factory delegate |
+| Audit existing registrations | `get_di_registrations` MCP tool — lifetimes, duplicates, captive-dependency risks in one call |
 | Strongly-typed config | `AddOptions<T>().BindConfiguration()` |

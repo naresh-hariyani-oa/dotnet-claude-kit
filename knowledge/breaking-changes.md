@@ -1,6 +1,6 @@
 # Breaking Changes: .NET 9 to .NET 10 Migration Guide
 
-> Last updated: February 2026 -- .NET 10 GA (November 2025)
+> Last updated: 2026-07-22 -- .NET 10 GA (November 2025)
 >
 > Sources: [Breaking changes in .NET 10](https://learn.microsoft.com/en-us/dotnet/core/compatibility/10), [ASP.NET Core 9 to 10 migration](https://learn.microsoft.com/en-us/aspnet/core/migration/90-to-100), [EF Core 10 breaking changes](https://learn.microsoft.com/en-us/ef/core/what-is-new/ef-core-10.0/breaking-changes)
 
@@ -216,6 +216,14 @@ The default .NET container base images now use Ubuntu instead of Debian. This ma
 OpenSSL-based cryptographic primitives are no longer supported on macOS. Use the platform's native cryptography APIs.
 
 ---
+
+## .NET 10 → 11 (Preview — GA November 10, 2026)
+
+> Placeholder. .NET 11 is an STS release currently at preview 6 (2026-07-15). This section will be filled with the full breaking-changes list at GA. Known so far from previews:
+
+- **C# 15 ships with .NET 11** — new keywords (`union`, `closed`, collection expression `with(...)`) are contextual, but review the [compiler breaking changes](https://learn.microsoft.com/en-us/dotnet/csharp/whats-new/breaking-changes) list before adopting `LangVersion` 15/preview.
+- **Container base images significantly restructured** — images are 15–33% smaller in preview 6; verify any tooling that depends on image layout or size assumptions.
+- Track the official list at [Breaking changes in .NET 11](https://learn.microsoft.com/en-us/dotnet/core/compatibility/11) as previews land.
 
 ## Migration Checklist
 

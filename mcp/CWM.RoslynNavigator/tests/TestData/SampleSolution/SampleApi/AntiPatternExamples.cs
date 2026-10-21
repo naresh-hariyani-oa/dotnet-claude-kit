@@ -113,4 +113,12 @@ public class AntiPatternExamples
     {
         await Task.Delay(100, ct);
     }
+
+    // AP010: materializing read query with no AsNoTracking and no SaveChanges
+    public Task<List<Customer>> ListCustomersAsync(FakeDbContext db) =>
+        db.Customers.Where(c => c.Name != "").ToListAsync();
+
+    // AP010: Should NOT be flagged — already AsNoTracking
+    public Task<List<Customer>> ListCustomersReadOnlyAsync(FakeDbContext db) =>
+        db.Customers.AsNoTracking().ToListAsync();
 }

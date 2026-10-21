@@ -1,5 +1,7 @@
 # Skill Benchmark Report
 
+> **Point-in-time snapshot** — generated 2026-03-06, before the v0.8.0 commands→skills consolidation. Several skills analyzed here were since merged or renamed (e.g. autonomous-loops → build-fix, verification-loop → verify, scaffolding → scaffold); the current set is 45 skills. Kept for methodology and historical reference.
+
 > Generated: 2026-03-06 | Skills analyzed: 47 | Total estimated tokens: ~91,700
 
 ## Executive Summary

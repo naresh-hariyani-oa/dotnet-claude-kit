@@ -8,18 +8,18 @@ namespace CWM.RoslynNavigator.Analyzers;
 /// AP001: Detects async void methods (except event handlers with (object, EventArgs) signature).
 /// async void swallows exceptions and prevents callers from awaiting completion.
 /// </summary>
-public sealed class AsyncVoidDetector : IAntiPatternDetector
+internal sealed class AsyncVoidDetector : IAntiPatternDetector
 {
     public bool RequiresSemanticModel => false;
 
-    public IEnumerable<AntiPatternViolation> Detect(SyntaxTree tree, SemanticModel? model, CancellationToken ct)
-    {
-        var root = tree.GetRoot(ct);
-        var filePath = tree.FilePath ?? "unknown";
+    // async void is a defect wherever it appears, including test and migration code.
+    public SourceKind AppliesTo => SourceKind.Production | SourceKind.Test | SourceKind.Migration;
 
-        foreach (var method in root.DescendantNodes().OfType<MethodDeclarationSyntax>())
+    public IEnumerable<AntiPatternViolation> Detect(DetectionContext context)
+    {
+        foreach (var method in context.Root.DescendantNodes().OfType<MethodDeclarationSyntax>())
         {
-            ct.ThrowIfCancellationRequested();
+            context.Ct.ThrowIfCancellationRequested();
 
             if (!method.Modifiers.Any(SyntaxKind.AsyncKeyword))
                 continue;
@@ -41,10 +41,12 @@ public sealed class AsyncVoidDetector : IAntiPatternDetector
                 Id: "AP001",
                 Severity: AntiPatternSeverity.Error,
                 Message: $"async void method '{method.Identifier.Text}' swallows exceptions and cannot be awaited",
-                File: filePath,
+                File: context.FilePath,
                 Line: line,
                 Snippet: snippet,
-                Suggestion: "Change return type to Task or Task<T>");
+                Suggestion: "Change return type to Task or Task<T>",
+                Confidence: AntiPatternConfidence.High,
+                Member: AnalyzerHelpers.EnclosingMember(method));
         }
     }
 

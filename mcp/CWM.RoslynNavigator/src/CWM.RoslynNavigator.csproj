@@ -15,18 +15,28 @@
 
     <!-- NuGet package metadata -->
     <PackageId>CWM.RoslynNavigator</PackageId>
-    <Version>0.7.1</Version>
+    <Version>0.10.0</Version>
     <Authors>Mukesh Murugan</Authors>
     <Company>codewithmukesh</Company>
     <Product>CWM.RoslynNavigator</Product>
     <Title>CWM Roslyn Navigator — MCP Server for .NET</Title>
-    <Description>A Model Context Protocol (MCP) server that gives AI coding assistants semantic understanding of .NET codebases via Roslyn. 15 read-only tools for symbol navigation, reference finding, type hierarchy, dependency graphs, anti-pattern detection, dead code analysis, and diagnostics — all returning token-optimized responses. Part of the dotnet-claude-kit ecosystem.</Description>
+    <Description>A Model Context Protocol (MCP) server that gives AI coding assistants semantic understanding of .NET codebases via Roslyn. 22 read-only tools for symbol navigation, reference finding, type hierarchy, dependency graphs, anti-pattern detection, dead code analysis, diagnostics, file outlines, symbol source extraction, NuGet package inventory, endpoint maps, DI registration analysis, stack trace resolution, and change impact analysis — all returning token-optimized responses with structured error codes. Part of the dotnet-claude-kit ecosystem.</Description>
     <PackageTags>mcp;roslyn;dotnet;claude;ai;code-analysis;semantic-analysis;codebase-navigation;model-context-protocol;claude-code</PackageTags>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/codewithmukesh/dotnet-claude-kit</PackageProjectUrl>
     <RepositoryUrl>https://github.com/codewithmukesh/dotnet-claude-kit</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+
+    <!--
+      Container publishing via the .NET 10 SDK — no Dockerfile, per the kit's own
+      container-publish guidance. The base image is the SDK rather than the runtime
+      because MSBuildLocator needs a real SDK installation to open a solution;
+      the aspnet/runtime images would fail at startup with "No .NET SDKs were found".
+    -->
+    <ContainerRepository>cwm-roslyn-navigator</ContainerRepository>
+    <ContainerBaseImage>mcr.microsoft.com/dotnet/sdk:10.0</ContainerBaseImage>
+    <ContainerWorkingDirectory>/workspace</ContainerWorkingDirectory>
 
     <!-- Source linking and reproducibility -->
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
@@ -41,12 +51,17 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="ModelContextProtocol" Version="0.2.0-preview.1" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
-    <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="5.0.0" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.0.0" />
-    <PackageReference Include="Microsoft.Build.Locator" Version="1.7.8" />
-    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+    <InternalsVisibleTo Include="CWM.RoslynNavigator.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ModelContextProtocol" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
+    <PackageReference Include="Microsoft.Build.Locator" />
+    <PackageReference Include="Microsoft.Build.Framework" ExcludeAssets="runtime" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All" />
   </ItemGroup>
 
 </Project>

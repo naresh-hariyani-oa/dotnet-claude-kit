@@ -1,67 +1,68 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace CWM.RoslynNavigator.Analyzers;
 
 /// <summary>
 /// AP008: Detects #pragma warning disable without a corresponding #pragma warning restore.
 /// Unbounded pragmas suppress warnings for the entire file, hiding potential issues.
+/// A restore only closes a disable that precedes it.
 /// </summary>
-public sealed class PragmaWithoutRestoreDetector : IAntiPatternDetector
+internal sealed class PragmaWithoutRestoreDetector : IAntiPatternDetector
 {
     public bool RequiresSemanticModel => false;
 
-    public IEnumerable<AntiPatternViolation> Detect(SyntaxTree tree, SemanticModel? model, CancellationToken ct)
+    public SourceKind AppliesTo => SourceKind.Production | SourceKind.Test;
+
+    public IEnumerable<AntiPatternViolation> Detect(DetectionContext context)
     {
-        var filePath = tree.FilePath ?? "unknown";
-        var root = tree.GetRoot(ct);
+        var disables = new List<(string Code, int Line)>();
+        var restores = new List<(string Code, int Line)>();
 
-        // Collect all pragma directives
-        var disables = new List<(string Code, int Line, Location Location)>();
-        var restores = new HashSet<string>(StringComparer.Ordinal);
-
-        foreach (var trivia in root.DescendantTrivia())
+        foreach (var trivia in context.Root.DescendantTrivia())
         {
-            ct.ThrowIfCancellationRequested();
+            context.Ct.ThrowIfCancellationRequested();
 
             if (!trivia.IsKind(SyntaxKind.PragmaWarningDirectiveTrivia))
                 continue;
 
-            var directive = trivia.GetStructure() as Microsoft.CodeAnalysis.CSharp.Syntax.PragmaWarningDirectiveTriviaSyntax;
-            if (directive is null)
+            if (trivia.GetStructure() is not PragmaWarningDirectiveTriviaSyntax directive)
                 continue;
 
             var isDisable = directive.DisableOrRestoreKeyword.IsKind(SyntaxKind.DisableKeyword);
+            var line = trivia.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
 
             foreach (var errorCode in directive.ErrorCodes)
             {
                 var code = errorCode.ToString().Trim();
+
                 if (isDisable)
-                {
-                    var line = trivia.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
-                    disables.Add((code, line, trivia.GetLocation()));
-                }
+                    disables.Add((code, line));
                 else
-                {
-                    restores.Add(code);
-                }
+                    restores.Add((code, line));
             }
         }
 
-        // Report disables without matching restores
-        foreach (var (code, line, _) in disables)
+        foreach (var (code, line) in disables)
         {
-            if (restores.Contains(code))
+            // Only a restore that comes after the disable actually closes it.
+            var closed = restores.Any(r =>
+                string.Equals(r.Code, code, StringComparison.Ordinal) && r.Line > line);
+
+            if (closed)
                 continue;
 
             yield return new AntiPatternViolation(
                 Id: "AP008",
                 Severity: AntiPatternSeverity.Warning,
                 Message: $"#pragma warning disable {code} has no matching restore",
-                File: filePath,
+                File: context.FilePath,
                 Line: line,
                 Snippet: $"#pragma warning disable {code}",
-                Suggestion: $"Add #pragma warning restore {code} after the affected code");
+                Suggestion: $"Add #pragma warning restore {code} after the affected code",
+                Confidence: AntiPatternConfidence.High,
+                Member: null);
         }
     }
 }

@@ -1,0 +1,23 @@
+# Normalize line endings to LF for all text files in the repo.
+# Without this, contributors on Windows (core.autocrlf=true) can commit CRLF,
+# which breaks shell scripts on macOS/Linux (e.g. the hooks/ guards).
+* text=auto eol=lf
+
+# Shell scripts MUST use LF — CRLF makes bash fail with
+# ": command not found" and "unexpected end of file".
+*.sh text eol=lf
+
+# Windows-only scripts keep CRLF when they exist.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary files git should never touch.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.nupkg binary

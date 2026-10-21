@@ -36,7 +36,7 @@ jobs:
         run: dotnet test ${{ env.TEST_PATH }} -c Release --logger trx --results-directory TestResults
 
       - name: Upload test results
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-results
@@ -60,7 +60,7 @@ jobs:
         run: dotnet pack ${{ env.PROJECT_PATH }} -c Release -o ./nupkg /p:Version=${{ inputs.version }} /p:ContinuousIntegrationBuild=true
 
       - name: Upload package
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: nuget-package
           path: ./nupkg/*
@@ -72,11 +72,27 @@ jobs:
     if: ${{ inputs.dry-run == false }}
     environment: nuget
     steps:
+      # Checkout first — it cleans the workspace, so the artifact download must come after.
+      - uses: actions/checkout@v5
+
       - name: Download package
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: nuget-package
           path: ./nupkg
+
+      - name: Count MCP tools
+        id: toolcount
+        # Compute the tool count from source so the release body never drifts
+        # from the actual number of [McpServerTool] attributes.
+        run: |
+          count=$(find mcp -type f -path '*/Tools/*.cs' -print0 | xargs -0 grep -hoE '\[McpServerTool\(' | wc -l | tr -d ' ')
+          echo "Found $count MCP tool(s)"
+          if [ "$count" -gt 0 ]; then
+            echo "summary=$count read-only Roslyn MCP tools for AI-powered .NET codebase navigation." >> "$GITHUB_OUTPUT"
+          else
+            echo "summary=Read-only Roslyn MCP tools for AI-powered .NET codebase navigation." >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
@@ -87,7 +103,7 @@ jobs:
         run: dotnet nuget push ./nupkg/CWM.RoslynNavigator.${{ inputs.version }}.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: v${{ inputs.version }}
           name: CWM.RoslynNavigator v${{ inputs.version }}
@@ -100,7 +116,7 @@ jobs:
 
             ## What's included
 
-            15 read-only Roslyn MCP tools for AI-powered .NET codebase navigation.
+            ${{ steps.toolcount.outputs.summary }}
 
             See [README](https://github.com/codewithmukesh/dotnet-claude-kit/blob/main/mcp/CWM.RoslynNavigator/README.md) for details.
           generate_release_notes: true

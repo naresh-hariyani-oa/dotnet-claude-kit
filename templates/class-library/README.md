@@ -60,4 +60,4 @@ Use `#if NET10_0_OR_GREATER` preprocessor directives for APIs only available in 
 
 ### Adding Benchmarks
 
-Add a `benchmarks/[ProjectName].Benchmarks/` project using `BenchmarkDotNet` to track performance regressions. Add `benchmarks` to the skills list if applicable.
+Add a `benchmarks/[ProjectName].Benchmarks/` project using `BenchmarkDotNet` to track performance regressions.

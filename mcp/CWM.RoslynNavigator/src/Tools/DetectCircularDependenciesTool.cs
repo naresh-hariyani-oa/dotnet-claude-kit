@@ -80,6 +80,9 @@ public static class DetectCircularDependenciesTool
                     if (typeSymbol.TypeKind is TypeKind.Enum or TypeKind.Delegate) continue;
 
                     var typeName = typeSymbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
+                    // Partial classes are safe to process once: GetDeclaredSymbol returns the
+                    // merged type symbol, so GetTypeDependencies sees members from every
+                    // partial declaration regardless of which syntax tree we hit first.
                     if (graph.ContainsKey(typeName)) continue;
 
                     var dependencies = GetTypeDependencies(typeSymbol)
@@ -153,8 +156,12 @@ public static class DetectCircularDependenciesTool
             .ToList();
     }
 
+    /// <summary>
+    /// Iterative DFS with an explicit stack — recursion depth equals the longest dependency
+    /// chain, which can overflow the call stack on large type graphs.
+    /// </summary>
     private static void Dfs(
-        string node,
+        string start,
         Dictionary<string, List<string>> graph,
         HashSet<string> visited,
         HashSet<string> onStack,
@@ -162,17 +169,29 @@ public static class DetectCircularDependenciesTool
         List<CircularDependencyChain> cycles,
         string level)
     {
-        visited.Add(node);
-        onStack.Add(node);
-        path.Add(node);
+        var stack = new Stack<(string Node, int NextNeighbor)>();
 
-        if (graph.TryGetValue(node, out var neighbors))
+        visited.Add(start);
+        onStack.Add(start);
+        path.Add(start);
+        stack.Push((start, 0));
+
+        while (stack.Count > 0)
         {
-            foreach (var neighbor in neighbors)
+            var (node, next) = stack.Pop();
+
+            if (graph.TryGetValue(node, out var neighbors) && next < neighbors.Count)
             {
+                // Re-push current frame to continue with the following neighbor later
+                stack.Push((node, next + 1));
+
+                var neighbor = neighbors[next];
                 if (!visited.Contains(neighbor) && graph.ContainsKey(neighbor))
                 {
-                    Dfs(neighbor, graph, visited, onStack, path, cycles, level);
+                    visited.Add(neighbor);
+                    onStack.Add(neighbor);
+                    path.Add(neighbor);
+                    stack.Push((neighbor, 0));
                 }
                 else if (onStack.Contains(neighbor))
                 {
@@ -185,9 +204,12 @@ public static class DetectCircularDependenciesTool
                     }
                 }
             }
+            else
+            {
+                // All neighbors explored — leave the node
+                path.RemoveAt(path.Count - 1);
+                onStack.Remove(node);
+            }
         }
-
-        path.RemoveAt(path.Count - 1);
-        onStack.Remove(node);
     }
 }

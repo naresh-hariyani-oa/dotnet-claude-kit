@@ -1,5 +1,7 @@
 # dotnet-claude-kit — Complete Repository Specification
 
+> **Historical** — v0.x launch spec, kept for context. Counts and schemas reflect the original plan (21 skills, 8 agents, 7 MCP tools); see README.md and CLAUDE.md for current state.
+
 > The definitive Claude Code companion for .NET developers.
 > Project-ready templates, intelligent agents, workflow automation, and a Roslyn MCP server for token-efficient codebase navigation.
 
@@ -200,6 +202,7 @@ dotnet-claude-kit/
 │       ├── 003-ef-core-default-orm.md     # Why EF Core, when to escape to raw SQL
 │       ├── 004-hybrid-cache-default.md    # Why HybridCache over manual patterns
 │       ├── 005-multi-architecture.md     # Multi-architecture support (supersedes 001)
+│       ├── 006-three-tier-antipattern-detection.md  # Why the pre-commit hook scans text
 │       └── template.md                    # ADR template for contributors
 │
 │

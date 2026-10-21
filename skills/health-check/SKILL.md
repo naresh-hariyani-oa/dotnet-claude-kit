@@ -10,311 +10,126 @@ description: >
   "technical assessment", "codebase review", "report card".
 ---
 
-# Health Check
+# /health-check — 8-Dimension Project Assessment
 
-## Core Principles
+## What
 
-1. **Data-driven assessment** — Use MCP tools for every dimension. `get_diagnostics` for build health, `detect_antipatterns` for code quality, `detect_circular_dependencies` for architecture, `get_test_coverage_map` for testing, `find_dead_code` for dead code. Gut feeling is not a grade.
+Runs a data-driven health assessment across 8 dimensions, each graded A-F with
+the specific data points that produced the grade, and rolls them into a GPA.
+Gut feeling is not a grade: every dimension uses MCP tools or CLI commands, and
+every grade below A comes with specific, prioritized, effort-estimated fixes —
+"add test classes for OrderService, PaymentProcessor, ShippingCalculator" is
+actionable; "improve test coverage" is not.
 
-2. **Letter grades with justification** — Every dimension gets A (90+), B (80+), C (70+), D (60+), or F (<60). Every grade includes the specific data points that produced it. "B in Code Quality" means nothing. "B in Code Quality: 3 anti-patterns in 2,400 lines (1.25 per 1K)" is actionable.
+This skill owns the **canonical grading system** for the kit. The full rubrics,
+GPA scale, and report template live in `references/grading-rubric.md` — load
+that file when running an assessment.
 
-3. **Actionable recommendations** — Every grade below A comes with specific, prioritized fix suggestions. "Improve test coverage" is not actionable. "Add test classes for OrderService, PaymentProcessor, and ShippingCalculator (3 production types without tests)" is.
+Tone is diagnostic, not punitive: a C grade is an improvement path, not a
+failure.
 
-4. **Comparative baselines** — Grade against .NET best practices, not perfection. Zero warnings is aspirational. Fewer than 1 warning per 1K lines of code is excellent. Context matters.
+## When
 
-5. **Non-judgmental tone** — Health checks are diagnostic, not punitive. A project with a C grade has a clear improvement path. Frame findings as opportunities, not failures.
+- Onboarding to an unfamiliar or new project — set the baseline
+- "How healthy is this?", "grade this project", "codebase review", "report card"
+- Pre-release quality gate, or monthly/quarterly maintenance review
+- After a cleanup sprint (`/de-sloppify`) — re-grade to show progress
+- Tech-debt prioritization — lowest grades get the next sprint's attention
 
-## Patterns
+## How
 
-### 8-Dimension Health Assessment
+### Step 1: Choose Scope
 
-Run all dimensions. Each uses specific MCP tools and produces a letter grade.
+| Scenario | Dimensions |
+|----------|------------|
+| Full assessment (onboarding, pre-release, monthly review) | All 8 |
+| Quick health (mid-sprint checkpoint, before a demo, after a merge) | 1-4 only |
+| After major refactor | 1 (Build), 3 (Architecture), 4 (Tests) |
+| Post-dependency update | 1 (Build), 7 (Security) |
+| After cleanup sprint | Re-grade only the cleaned dimensions |
 
-**Dimension 1: Build Health**
-```
-Tool: dotnet build --no-restore
-Metric: Error count, warning count
-```
+### Step 2: Run the Dimensions
 
-| Grade | Criteria |
-|-------|----------|
-| A | 0 errors, 0 warnings |
-| B | 0 errors, 1-5 warnings |
-| C | 0 errors, 6-15 warnings |
-| D | 0 errors, 16-30 warnings |
-| F | Any errors, or 30+ warnings |
+Read `references/grading-rubric.md` for the grade thresholds, then collect data
+per dimension. For deep code-quality dimensions, delegate to the
+`code-reviewer` agent with the `code-review` skill.
 
-**Dimension 2: Code Quality**
-```
-Tool: MCP detect_antipatterns(projectFilter: each project)
-Metric: Anti-pattern count per 1K lines of code
-```
+| # | Dimension | Data source |
+|---|-----------|-------------|
+| 1 | Build Health | `dotnet build --no-restore` — errors + warnings |
+| 2 | Code Quality | MCP `detect_antipatterns` — read `summary`, grade high-confidence only |
+| 3 | Architecture | MCP `get_project_graph` + `detect_circular_dependencies` (projects AND types) |
+| 4 | Test Coverage | MCP `get_test_coverage_map` — **check `applicable` first** (structural, not line coverage) |
+| 5 | Dead Code | MCP `find_dead_code(scope: "solution")` — grade high-confidence; ignore `conventionFiltered` |
+| 6 | API Surface | MCP `get_public_api` + `find_references` — overexposure, return-type consistency |
+| 7 | Security Posture | `dotnet list package --vulnerable --include-transitive` + secrets/auth spot check (deep dive: `/security-scan`) |
+| 8 | Documentation | XML doc coverage on public APIs + README currency |
 
-| Grade | Criteria |
-|-------|----------|
-| A | 0 anti-patterns |
-| B | < 0.5 per 1K lines |
-| C | 0.5 - 1.5 per 1K lines |
-| D | 1.5 - 3.0 per 1K lines |
-| F | > 3.0 per 1K lines |
+### Step 2.5: Triage Gate (before any grade is assigned)
 
-Common anti-patterns detected: async void, sync-over-async, `new HttpClient()`, `DateTime.Now`,
-broad catch blocks, string interpolation in logging, missing CancellationToken.
+Detector output is evidence, not a grade. Pass every finding through this gate
+first — it is what stops a noisy count becoming a wrong letter.
 
-**Dimension 3: Architecture**
-```
-Tool: MCP get_project_graph — check dependency direction
-Tool: MCP detect_circular_dependencies(scope: "projects") — find cycles
-Tool: MCP detect_circular_dependencies(scope: "types", projectFilter: each) — type-level cycles
-```
+1. **Read `summary`, not the violation list.** `summary.byId` is complete even
+   when the list is truncated. Never sample a truncated list and extrapolate.
+2. **Drop `suppressed`.** Record the count and `summary.suppressionConfig` in the
+   report so suppression stays visible.
+3. **Set aside `medium`.** These are review items, not grade inputs. Summarise
+   them by category; do not fix or count them.
+4. **Grade `high` only.** These are wrong regardless of context.
+5. **Check invariants.** If a signal contradicts something the target repo's
+   CLAUDE.md documents as deliberate, the invariant wins — verify before grading.
+6. **Read before asserting.** Never describe a finding you have not opened. If
+   you cannot open all of them, report the ones you did and say so.
 
-| Grade | Criteria |
-|-------|----------|
-| A | Correct dependency direction, 0 circular deps (project or type level) |
-| B | Correct dependency direction, 1-2 type-level cycles (no project cycles) |
-| C | 1-2 minor direction issues, or 3-5 type-level cycles |
-| D | Project-level circular dependency, or significant layer violations |
-| F | Multiple project-level cycles, no discernible architecture |
+Fill in the triage table from `references/grading-rubric.md` as you go. If the
+table cannot be filled, the dimension is not ready to grade.
 
-**Dimension 4: Test Coverage**
-```
-Tool: MCP get_test_coverage_map(projectFilter: each production project)
-Metric: Percentage of production types with corresponding test classes
-```
+### Step 3: Grade and Aggregate
 
-| Grade | Criteria |
-|-------|----------|
-| A | 90%+ types have test classes |
-| B | 75-89% types have test classes |
-| C | 50-74% types have test classes |
-| D | 25-49% types have test classes |
-| F | < 25% types have test classes |
+Apply the rubric thresholds exactly — never grade on a curve ("pretty good for
+a project this size" is how standards erode; 15 warnings is a C regardless of
+project size). Convert to GPA (A=4.0 … F=0.0), averaging only the dimensions
+actually graded — a dimension marked "Not assessed" is excluded from the GPA,
+never scored as an F.
 
-Note: This is structural coverage (test class exists), not runtime line coverage.
-A test class existing does not guarantee thorough testing, but its absence guarantees none.
+### Step 4: Report
 
-**Dimension 5: Dead Code**
-```
-Tool: MCP find_dead_code(scope: "solution", kind: "all", maxResults: 50)
-Metric: Count of unused types, methods, and properties
-```
+Produce the report card from the template in `references/grading-rubric.md`:
+grades table with key findings, overall GPA, and priority recommendations —
+each with named types/files, priority order, and effort estimates. If a
+previous report exists, append the trend comparison table.
 
-| Grade | Criteria |
-|-------|----------|
-| A | 0-2 dead symbols |
-| B | 3-8 dead symbols |
-| C | 9-15 dead symbols |
-| D | 16-25 dead symbols |
-| F | 25+ dead symbols |
-
-Note: Some false positives are expected (reflection, DI conventions). Verify before penalizing.
-
-**Dimension 6: API Surface**
-```
-Tool: MCP get_public_api(typeName: each public type) — review public API design
-Tool: MCP find_references(symbolName: public members) — check for overexposed APIs
-```
-
-| Grade | Criteria |
-|-------|----------|
-| A | Minimal public surface, proper return types, consistent naming |
-| B | Mostly clean, 1-2 overexposed types |
-| C | Several types expose internal details, inconsistent return types |
-| D | Public APIs leak implementation, mixed return type patterns |
-| F | No API design consideration, everything is public |
-
-Check for:
-- Services that should be `internal` but are `public`
-- Methods returning `Task` instead of `Task<Result<T>>` for operations that can fail
-- Inconsistent return types across similar endpoints (some `TypedResults`, some `IResult`)
-- Public setters on types that should be immutable
-
-**Dimension 7: Security Posture**
-```
-Tool: dotnet list package --vulnerable --include-transitive
-Tool: MCP detect_antipatterns — filter for security-related patterns
-Scan: Hardcoded secrets, connection strings in code, missing auth attributes
-```
-
-| Grade | Criteria |
-|-------|----------|
-| A | 0 vulnerable packages, no hardcoded secrets, auth on all endpoints |
-| B | 0 critical/high vulns, 1-2 low/medium vulns, clean auth |
-| C | 1-2 medium vulns, or minor auth gaps |
-| D | High-severity vuln, or missing auth on sensitive endpoints |
-| F | Critical vuln, hardcoded secrets, or systemic auth gaps |
-
-**Dimension 8: Documentation**
-```
-Scan: XML docs on public API types and methods
-Check: README exists, is current, covers setup and architecture
-```
-
-| Grade | Criteria |
-|-------|----------|
-| A | 90%+ public APIs have XML docs, README is comprehensive |
-| B | 70-89% XML doc coverage, README covers basics |
-| C | 50-69% XML doc coverage, README exists but is sparse |
-| D | < 50% XML doc coverage, minimal README |
-| F | No XML docs, no README or severely outdated |
-
-### Report Card Format
-
-```markdown
-## Project Health Report
-
-**Project:** MyApp | **Date:** 2026-03-04 | **Assessed by:** Claude (MCP-assisted)
-
-### Grades
-
-| Dimension | Grade | Score | Key Finding |
-|-----------|-------|-------|-------------|
-| Build Health | A | 95 | 0 errors, 2 pre-existing warnings |
-| Code Quality | B | 82 | 3 anti-patterns in 4.2K lines |
-| Architecture | A | 92 | Clean dependency direction, 0 circular deps |
-| Test Coverage | C | 68 | 34/50 production types have test classes |
-| Dead Code | B | 85 | 5 unused methods identified |
-| API Surface | B | 80 | 2 overexposed service types |
-| Security | A | 94 | 0 vulnerable packages, auth coverage complete |
-| Documentation | D | 55 | 12/30 public APIs have XML docs |
-
-### Overall GPA: 3.0 (B-)
-
-### Priority Recommendations
-
-1. **Test Coverage (C -> B):** Add test classes for these 16 untested types:
-   - `OrderService`, `PaymentProcessor`, `ShippingCalculator` (critical path)
-   - `EmailNotifier`, `InventoryChecker`, ... (supporting services)
-   Estimated effort: 2-3 days
-
-2. **Documentation (D -> C):** Add XML docs to public API types:
-   - Start with the 8 controller/endpoint classes (user-facing APIs)
-   - Then cover the 10 public service interfaces
-   Estimated effort: 1 day
-
-3. **Code Quality (B -> A):** Fix 3 anti-patterns:
-   - `OrderService.cs:47` — Replace `DateTime.Now` with `TimeProvider.GetUtcNow()`
-   - `PaymentClient.cs:23` — Replace `new HttpClient()` with `IHttpClientFactory`
-   - `NotificationHandler.cs:12` — Replace `async void` with `async Task`
-   Estimated effort: 1 hour
-```
-
-### GPA Calculation
-
-Convert letter grades to points: A=4.0, B=3.0, C=2.0, D=1.0, F=0.0
-GPA = average of all 8 dimension scores.
-
-| GPA Range | Overall Assessment |
-|-----------|--------------------|
-| 3.5 - 4.0 | Excellent — production-ready, well-maintained |
-| 3.0 - 3.4 | Good — solid foundation, minor improvements needed |
-| 2.5 - 2.9 | Fair — functional but accumulating tech debt |
-| 2.0 - 2.4 | Needs Work — significant improvements required |
-| < 2.0 | Critical — major structural issues to address |
-
-### Quick Health Check
-
-For a rapid assessment, run dimensions 1-4 only:
+## Example
 
 ```
-QUICK HEALTH (4 dimensions):
-1. Build Health — dotnet build
-2. Code Quality — detect_antipatterns
-3. Architecture — get_project_graph + detect_circular_dependencies
-4. Test Coverage — get_test_coverage_map
+User: /health-check
 
-Use when:
-- Mid-sprint checkpoint
-- Quick status before a demo
-- Onboarding to an unfamiliar codebase
-- After a major merge
+Claude: Running full 8-dimension assessment...
+
+| Dimension | Grade | Key Finding |
+|-----------|-------|-------------|
+| Build Health | A | 0 errors, 2 warnings |
+| Code Quality | B | 3 high-confidence findings in 4.2K lines; 31 medium untriaged |
+| Architecture | A | Clean direction, 0 cycles |
+| Test Coverage | Not assessed | Integration-driven suite — structural metric invalid |
+| Dead Code | B | 5 unused methods (79 convention-discovered, not counted) |
+| API Surface | B | 2 overexposed service types |
+| Security | A | 0 vulnerable packages |
+| Documentation | D | 12/30 public APIs documented |
+
+Overall GPA: 3.1 (B) — averaged over 7 graded dimensions.
+
+Triage: 44 AP005 raw → all log-and-rethrow wrappers (medium); 2 AP004 real.
+
+Priority: (1) `SystemSeeder` → `TimeProvider`, ~15 min; (2) XML docs on the 8
+endpoint classes, ~1 day; (3) review the 44 catch blocks or suppress by path.
 ```
 
-### Trend Tracking
+## Related
 
-If a previous health report exists, compare grades:
-
-```markdown
-### Trend
-
-| Dimension | Previous | Current | Change |
-|-----------|----------|---------|--------|
-| Build Health | B | A | Improved — fixed 4 warnings |
-| Code Quality | C | B | Improved — resolved 7 anti-patterns |
-| Test Coverage | C | C | No change — still 68% |
-| Dead Code | B | B | No change |
-```
-
-Track trends to show progress over time. Improving grades validate cleanup efforts.
-
-## Anti-patterns
-
-### Grading Without MCP Tools
-
-```
-# BAD — gut-feeling assessment
-"The code looks pretty clean, I'd give it a B overall."
-# No data. No specific findings. No actionable recommendations.
-
-# GOOD — MCP-driven assessment with data
-MCP: detect_antipatterns → 3 findings
-MCP: get_diagnostics → 2 warnings
-MCP: get_test_coverage_map → 68% coverage
-"Code Quality: B (3 anti-patterns in 4.2K lines = 0.71 per 1K).
- Specific anti-patterns: DateTime.Now in OrderService.cs:47, ..."
-```
-
-### Only Checking Build Health
-
-```
-# BAD — build passes, ship it
-"dotnet build succeeded with 0 errors. The project is healthy!"
-# Misses: 12 anti-patterns, 3 circular dependencies, 30% test coverage, 2 CVEs
-
-# GOOD — all 8 dimensions for a complete picture
-Build passes, but Architecture is D (circular deps), Test Coverage is F (15%),
-and Security is D (high-severity CVE). Overall GPA: 2.1 — Needs Work.
-```
-
-### Inflated Grades
-
-```
-# BAD — grading on a curve to make the project look good
-15 warnings → "That's pretty good for a project this size" → Grade: B
-# Absolute standards exist for a reason
-
-# GOOD — consistent grading against defined thresholds
-15 warnings → Grade C (6-15 warnings bracket)
-"15 warnings puts this in the C range. Here are the 5 highest-priority
- warnings to fix to reach B (under 6 warnings)."
-```
-
-### Recommendations Without Specifics
-
-```
-# BAD — vague improvement suggestions
-"Improve test coverage."
-"Fix code quality issues."
-"Address security concerns."
-
-# GOOD — specific, prioritized, estimated
-"Add test classes for OrderService, PaymentProcessor, ShippingCalculator.
- These are on the critical path and have 0 test coverage.
- Start with OrderService — it has the most complex logic.
- Estimated effort: 4 hours for all three."
-```
-
-## Decision Guide
-
-| Scenario | Assessment Type | Dimensions |
-|----------|----------------|------------|
-| New project onboarding | Full Health Check | All 8 |
-| Mid-sprint checkpoint | Quick Health | 1-4 |
-| Pre-release quality gate | Full Health Check | All 8 |
-| After major refactor | Targeted | 1 (Build), 3 (Architecture), 4 (Tests) |
-| Post-dependency update | Targeted | 1 (Build), 7 (Security) |
-| Tech debt prioritization | Full Health Check | All 8, focus on lowest grades |
-| Monthly maintenance review | Full Health Check | All 8 with trend comparison |
-| Before hiring/onboarding | Full Health Check | All 8 — sets baseline for new team member |
-| After cleanup sprint | Targeted | Re-grade dimensions that were cleaned up |
-| Executive summary needed | Full Health Check | All 8 with GPA summary |
+- `references/grading-rubric.md` — canonical rubrics, GPA scale, report template
+- `/de-sloppify` — cleanup pipeline for the issues a health check surfaces
+- `/security-scan` — deep 6-layer scan behind Dimension 7
+- `/code-review` — per-change review (this skill grades the whole project)
+- `/verify` — pass/fail pipeline for a change set, not a graded assessment

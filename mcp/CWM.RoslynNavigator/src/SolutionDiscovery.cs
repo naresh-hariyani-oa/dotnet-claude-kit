@@ -4,7 +4,7 @@ namespace CWM.RoslynNavigator;
 /// Discovers .sln/.slnx files from command-line arguments or the working directory.
 /// Uses breadth-first search up to <see cref="MaxSearchDepth"/> levels deep.
 /// </summary>
-public static class SolutionDiscovery
+internal static class SolutionDiscovery
 {
     private static readonly string[] SolutionExtensions = [".sln", ".slnx"];
 

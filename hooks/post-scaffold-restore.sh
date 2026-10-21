@@ -14,10 +14,17 @@ set -euo pipefail
 
 FILE="${1:-${CLAUDE_EDITED_FILE:-}}"
 
-# Fallback: parse file_path from PostToolUse stdin JSON
+# Fallback: parse file_path from PostToolUse stdin JSON. Prefer jq (handles JSON
+# escapes like \\ in Windows paths correctly); fall back to a sed extraction.
 if [[ -z "$FILE" ]] && [[ ! -t 0 ]]; then
     STDIN=$(cat)
-    FILE=$(echo "$STDIN" | grep -o '"file_path" *: *"[^"]*"' | head -1 | grep -o '"[^"]*"$' | tr -d '"') || true
+    if command -v jq >/dev/null 2>&1; then
+        FILE=$(printf '%s' "$STDIN" | jq -r '.tool_input.file_path // empty' 2>/dev/null) || true
+    fi
+    if [[ -z "$FILE" ]]; then
+        FILE=$(printf '%s' "$STDIN" | sed -n 's/.*"file_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1) || true
+        FILE="${FILE//\\\\/\\}"
+    fi
 fi
 
 # If we have a file path, only restore for .csproj files

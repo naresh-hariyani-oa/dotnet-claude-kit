@@ -42,7 +42,7 @@ public async Task CreateOrder_ValidRequest_ReturnsCreated()
     var response = await client.PostAsJsonAsync("/orders", request);
 
     // Assert
-    response.StatusCode.Should().Be(HttpStatusCode.Created);
+    Assert.Equal(HttpStatusCode.Created, response.StatusCode);
 }
 ```
 

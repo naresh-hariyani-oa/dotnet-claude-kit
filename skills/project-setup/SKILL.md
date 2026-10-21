@@ -1,227 +1,81 @@
 ---
 name: project-setup
 description: >
-  Interactive project setup, health check, and migration workflows.
-  Guides developers through project initialization with customized CLAUDE.md generation,
-  codebase health analysis using MCP tools, and .NET version migration.
-  Load when: "init project", "setup project", "new project", "health check",
-  "analyze project", "project report", "migrate", "upgrade dotnet",
-  "upgrade .NET", "generate CLAUDE.md".
+  Tech-stack selection advisor for .NET projects: recommended defaults for
+  database, auth, caching, messaging, observability, and resilience, with the
+  rationale behind each default. Load when choosing or reviewing a project's
+  tech stack, or when the user says "tech stack", "which database", "pick a
+  stack", "recommended defaults", or "what should I use for". For project
+  initialization use dotnet-init, for codebase assessment use health-check,
+  for upgrades and schema changes use migrate.
 ---
 
-# Project Setup & Workflows
+# Project Setup — Tech-Stack Advisor
+
+This skill owns one thing: the kit's recommended tech-stack defaults and why. The workflows that consume it live elsewhere:
+
+- **Initializing a project / generating CLAUDE.md** → `dotnet-init` (interactive flow, architecture questionnaire, CLAUDE.md generation)
+- **Assessing an existing codebase** → `health-check` (the canonical 8-dimension graded assessment)
+- **EF Core schema, NuGet, or .NET version migrations** → `migrate`
+- **Choosing an architecture** → `architecture-advisor` (always ask before recommending)
 
 ## Core Principles
 
-1. **Interactive over passive** — Don't dump a generic template. Ask questions, gather context, then generate a customized result tailored to the specific project.
-2. **MCP-driven analysis** — Use Roslyn MCP tools for health checks and migration analysis instead of reading files manually. Token-efficient and semantically accurate.
-3. **Generate, don't template** — CLAUDE.md files should be fully populated with specific choices (not `[PLACEHOLDER]` values). Every section should reflect the actual project decisions.
-4. **Architecture-first** — Every workflow starts by understanding or selecting the project's architecture. Architecture drives folder structure, naming, patterns, and test organization.
-5. **Verify after action** — After any workflow completes (init, migration, health check), verify the result. Run builds, tests, or health checks to confirm success.
+1. **Recommend a default, explain the why, let the user choose** — Every dimension has a kit default, but defaults are starting points, not mandates. State the trade-off in one line so the choice is informed.
+2. **Prefer built-in .NET over third-party** — `HybridCache` over Redis-client wrappers, built-in rate limiting over packages, built-in OpenAPI over Swashbuckle. Fewer dependencies means fewer licensing surprises and upgrade breaks.
+3. **License-aware picks** — MediatR (v13+), MassTransit (v9+), and FluentAssertions (v8+) went commercial. The kit defaults to MIT alternatives: Mediator, Wolverine, plain xUnit asserts.
+4. **Add messaging later, not never** — Most projects don't need a message bus on day one. Default to "None (add later)" and reach for Wolverine when async workflows actually appear.
 
 ## Patterns
 
-### Project Init Workflow
+### Tech-Stack Dimensions and Defaults
 
-Interactive conversational flow for new projects. Execute steps in order, waiting for user input at each decision point.
+| Dimension | Options | Default | Why |
+|-----------|---------|---------|-----|
+| Database | PostgreSQL, SQL Server, SQLite | PostgreSQL | Open source, best EF Core provider outside SQL Server, first-class Testcontainers support |
+| Auth | JWT Bearer, OIDC (Keycloak/Auth0), None | JWT Bearer | Simplest secure default for APIs; move to OIDC when an external IdP exists |
+| Caching | HybridCache, Redis, None | HybridCache | Built-in, stampede protection, L1+L2 — add Redis only as its L2 backend |
+| Messaging | Wolverine (RabbitMQ), MassTransit, None | None (add later) | Premature messaging adds ops burden; Wolverine (MIT) when needed |
+| Observability | Serilog + OpenTelemetry, Basic logging | Serilog + OTEL | Structured logs + traces from day one are cheap; retrofitting is not |
+| Resilience | Polly v8 pipelines, Basic retry | Polly v8 | `AddStandardResilienceHandler()` is one line for production-grade defaults |
+| API docs | Built-in OpenAPI + Scalar | OpenAPI + Scalar | Framework-maintained spec generation; Scalar replaces Swagger UI |
+| Testing | xUnit v3 + Testcontainers | xUnit v3 + Testcontainers | Real databases in tests; in-memory providers hide real bugs |
 
-**Step 1: Project Identity**
-Ask:
-- Project name (used for solution, namespaces, CLAUDE.md)
-- Project type: API, Blazor, Worker Service, Class Library, or Modular Monolith
-
-**Step 2: Architecture Selection**
-Delegate to the `architecture-advisor` skill:
-- Run the full questionnaire (15+ questions across 6 categories)
-- Recommend VSA, Clean Architecture, DDD + CA, or Modular Monolith
-- Explain the rationale for the recommendation
-
-**Step 3: Tech Stack Selection**
-Ask about each dimension with a recommended default:
-
-| Dimension | Options | Default |
-|-----------|---------|---------|
-| Database | PostgreSQL, SQL Server, SQLite | PostgreSQL |
-| Auth | JWT Bearer, OIDC (Keycloak/Auth0), None | JWT Bearer |
-| Caching | HybridCache, Redis, None | HybridCache |
-| Messaging | Wolverine (RabbitMQ), MassTransit, None | None (add later) |
-| Observability | Serilog + OpenTelemetry, Basic logging | Serilog + OTEL |
-| Resilience | Polly v8 pipelines, Basic retry | Polly v8 |
-
-**Step 4: Generate CLAUDE.md**
-Generate a customized CLAUDE.md with all choices baked in:
-
-```markdown
-# [ProjectName] — Development Instructions
-
-## Architecture
-This project uses [Selected Architecture].
-[Architecture-specific conventions and rules]
-
-## Tech Stack
-- **Runtime**: .NET 10 / C# 14
-- **Database**: [Selected] with EF Core 10
-- **Auth**: [Selected]
-- **Caching**: [Selected]
-- **Observability**: [Selected]
-
-## Conventions
-[Architecture-specific patterns, naming, folder structure]
-
-## Skills
-[List of relevant skills to load based on choices]
-```
-
-**Step 5: Next Steps**
-Suggest:
-- Initial project structure with `dotnet new` commands
-- Directory.Build.props with common settings
-- First feature scaffold to validate the architecture
-
-### Health Check Workflow
-
-Automated codebase analysis that produces a graded report card. Run this when asked to "check health", "analyze the project", or "how's the codebase".
-
-**Step 1: Solution Analysis**
-```
-→ get_project_graph
-  Analyze: project count, dependency direction, target frameworks, naming consistency
-```
-
-**Step 2: Anti-pattern Scan**
-```
-→ detect_antipatterns (scope: solution)
-  Count and categorize: async void, sync-over-async, DateTime.Now, new HttpClient(), etc.
-```
-
-**Step 3: Compiler Diagnostics**
-```
-→ get_diagnostics (severity: warning, scope: solution)
-  Count warnings by category: CS8600 (nullability), CS0219 (unused vars), etc.
-```
-
-**Step 4: Dead Code Detection**
-```
-→ find_dead_code (scope: solution)
-  Identify unused types, methods, and properties that can be removed.
-```
-
-**Step 5: Test Coverage Assessment**
-```
-→ get_test_coverage_map
-  Check: test project exists, percentage of types with corresponding tests.
-```
-
-**Step 6: Report Card**
-
-Generate a structured report:
-
-```
-## Codebase Health Report
-
-### Grade: B+ (82/100)
-
-| Category | Score | Issues |
-|----------|-------|--------|
-| Architecture | 18/20 | Clean dependency direction, 1 questionable reference |
-| Anti-patterns | 14/20 | 3 DateTime.Now usages, 1 async void |
-| Diagnostics | 20/20 | 0 warnings |
-| Dead Code | 16/20 | 4 unused methods found |
-| Test Coverage | 14/20 | 70% of types have test coverage |
-
-### Priority Actions
-1. **Replace DateTime.Now with TimeProvider** (3 locations) — error-handling skill
-2. **Fix async void** in EventService.OnMessage — critical, exceptions will be unobserved
-3. **Remove dead code** — 4 unused methods in OrderService, PaymentHelper
-4. **Add tests** for ShippingService, NotificationService
-```
-
-Grading scale:
-- **A (90-100)**: Production-ready, well-maintained
-- **B (75-89)**: Good shape, minor improvements needed
-- **C (60-74)**: Needs attention, several areas to improve
-- **D (40-59)**: Significant issues, prioritize cleanup
-- **F (<40)**: Critical problems, stop feature work and fix
-
-### Migration Workflow
-
-> For complete migration workflows (EF Core, NuGet, .NET version upgrades), see the **migration-workflow** skill.
+Once dimensions are chosen, `dotnet-init` bakes them into the generated CLAUDE.md, and each choice maps to a skill to load when working in that area (`ef-core`, `authentication`, `caching`, `messaging`, `serilog`, `opentelemetry`, `resilience`, `openapi`, `scalar`, `testing`).
 
 ## Anti-patterns
 
-### Skipping Architecture Questionnaire
+### Prescribing a Stack Without Asking
 
 ```
-# BAD — Generating CLAUDE.md without asking about the project
-"Here's your CLAUDE.md with VSA architecture..."
+# BAD — assuming the kit defaults apply everywhere
+"You should use PostgreSQL and Wolverine."
+# The team runs SQL Server enterprise-wide and has zero async workflows.
+
+# GOOD — default + trade-off + question
+"Kit default is PostgreSQL (best OSS EF provider). Any organizational
+constraint — existing SQL Server licenses, DBA support — that should
+override it?"
 ```
 
-```
-# GOOD — Running the full questionnaire first
-"Let me understand your project first. What's the domain complexity? How many developers?
-How important is independent deployability? ..."
-→ Based on answers: "I recommend Clean Architecture because..."
-```
-
-### Generic CLAUDE.md with Placeholders
-
-```markdown
-<!-- BAD — User has to fill in everything manually -->
-## Architecture
-This project uses [ARCHITECTURE].
-Database: [DATABASE]
-Auth: [AUTH_METHOD]
-```
-
-```markdown
-<!-- GOOD — Fully populated from the conversation -->
-## Architecture
-This project uses Vertical Slice Architecture.
-Database: PostgreSQL with EF Core 10
-Auth: JWT Bearer with ASP.NET Core Identity
-```
-
-### Health Check Without MCP Tools
+### Re-Running Workflows This Skill Doesn't Own
 
 ```
-# BAD — Reading random files and guessing at quality
-"I read Program.cs and it looks fine..."
-```
+# BAD — improvising a health grading or init flow from this skill
+"Let me grade your codebase across 5 categories..."
+# That grading conflicts with the canonical one.
 
-```
-# GOOD — Systematic analysis with MCP tools
-→ get_project_graph: 5 projects, clean dependency direction
-→ detect_antipatterns: 3 violations (2 warning, 1 error)
-→ get_diagnostics: 7 warnings (5 CS8600, 2 CS0219)
-→ find_dead_code: 4 unused symbols
-→ get_test_coverage_map: 65% coverage
-Grade: B (78/100)
-```
-
-### Running Migration Without a Plan
-
-```bash
-# BAD — Just changing the TFM and hoping for the best
-sed -i 's/net8.0/net10.0/g' **/*.csproj
-dotnet build  # 47 errors
-```
-
-```bash
-# GOOD — Systematic migration with verification at each step
-# Phase 1: Update framework → build → fix
-# Phase 2: Update packages → build → fix
-# Phase 3: Adopt new features → build → test
-# Phase 4: Full verification
+# GOOD — route to the owner
+Init/CLAUDE.md → dotnet-init | Assessment → health-check | Upgrades → migrate
 ```
 
 ## Decision Guide
 
-| Scenario | Workflow | Key Tool |
-|----------|----------|----------|
-| New greenfield project | Project Init | architecture-advisor skill |
-| Joining existing project | Health Check → Init (for CLAUDE.md) | get_project_graph |
-| "How's our codebase?" | Health Check | detect_antipatterns, get_diagnostics |
-| "Upgrade to .NET 10" | Migration | get_project_graph, breaking-changes.md |
-| "Generate CLAUDE.md for this project" | Project Init (skip new project steps) | get_project_graph |
-| Code quality declining | Health Check → set baseline → periodic re-check | All MCP tools |
-| Onboarding new developers | Health Check + Init (generates CLAUDE.md documenting conventions) | convention-learner skill |
+| Scenario | Route to |
+|----------|----------|
+| "Set up this project for Claude Code" | `dotnet-init` |
+| "Which database/auth/caching should I use?" | This skill — table above |
+| "How healthy is this codebase?" | `health-check` |
+| "Upgrade to .NET 10" / "update packages" | `migrate` |
+| "Which architecture fits?" | `architecture-advisor` |
+| Stack chosen, ready to build | `scaffold` for the first feature |

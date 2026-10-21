@@ -14,7 +14,7 @@ description: >
 
 ## Core Principles
 
-1. **Aspire is for orchestration, not deployment** — Aspire manages your local development experience: starting services, databases, and message brokers together. Production deployment is a separate concern.
+1. **AppHost orchestrates; it is never deployed itself** — Aspire's core job is the local development experience: starting services, databases, and message brokers together. Modern Aspire also generates deployment assets (`aspire publish` for docker-compose/Kubernetes manifests, `aspire deploy` for Azure Container Apps) — but the AppHost process itself stays a dev/build-time tool, not a production runtime.
 2. **Service defaults are your baseline** — The `ServiceDefaults` project configures OpenTelemetry, health checks, and resilience for all services in one place.
 3. **Use Aspire integrations** — Aspire has built-in integrations for PostgreSQL, Redis, RabbitMQ, SQL Server, and more. They handle connection strings, health checks, and tracing automatically.
 4. **The dashboard is your observability tool** — Use the Aspire dashboard for local development tracing, logging, and metrics instead of setting up Seq/Grafana locally.
@@ -128,13 +128,15 @@ MyApp.slnx
 
 ## Anti-patterns
 
-### Don't Use Aspire for Production Deployment
+### Don't Deploy the AppHost Process
 
 ```csharp
-// BAD — Aspire AppHost is not a production deployment tool
-// Don't try to deploy the AppHost to Kubernetes
+// BAD — running the AppHost executable in production as an orchestrator
+// The AppHost is a dev/build-time tool, not a production runtime
 
-// GOOD — Use Aspire for local dev, deploy with Docker/K8s/Azure separately
+// GOOD — deploy the generated assets, not the AppHost:
+//   aspire publish  → docker-compose / Kubernetes manifests from the app model
+//   aspire deploy   → direct deployment (e.g., Azure Container Apps)
 ```
 
 ### Don't Hardcode Connection Strings with Aspire
@@ -168,5 +170,5 @@ builder.AddServiceDefaults();
 | Shared service configuration | ServiceDefaults project |
 | Database for local dev | Aspire `AddPostgres()` / `AddSqlServer()` |
 | Service discovery | Aspire's built-in service discovery |
-| Production deployment | Docker / Kubernetes / Azure Container Apps |
+| Production deployment | `aspire publish` (compose/K8s manifests) or `aspire deploy` (ACA); never the AppHost itself |
 | Observability in local dev | Aspire dashboard (auto-configured) |

@@ -1,3 +1,12 @@
+---
+name: ef-core-specialist
+description: >
+  Database expert for Entity Framework Core — DbContext design, efficient LINQ
+  queries, migrations, interceptors, compiled queries, and data access
+  optimization. Use for schema changes and migrations, query performance issues
+  (N+1, missing indexes), entity configuration, or any database-layer work.
+---
+
 # EF Core Specialist Agent
 
 ## Role Definition
@@ -10,7 +19,7 @@ Load these skills in order:
 1. `modern-csharp` — Baseline C# 14 patterns
 2. `ef-core` — DbContext patterns, queries, migrations, interceptors, compiled queries
 3. `configuration` — Connection strings, options pattern for DB configuration
-4. `migration-workflow` — Safe migration workflows for EF Core, .NET versions, and dependencies
+4. `migrate` — Safe migration workflows for EF Core, .NET versions, and dependencies
 
 ## MCP Tool Usage
 

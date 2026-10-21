@@ -196,6 +196,8 @@ public abstract class AggregateRoot : Entity
     public void ClearDomainEvents() => _domainEvents.Clear();
 }
 
+// INotification comes from the MIT-licensed Mediator package (not MediatR —
+// see the packages rule). Use a plain marker interface if you don't use a mediator.
 public interface IDomainEvent : INotification
 {
     DateTimeOffset OccurredAt { get; }
@@ -207,25 +209,29 @@ public sealed record OrderPlaced(Guid OrderId, CustomerId CustomerId, DateTimeOf
     public DateTimeOffset OccurredAt => PlacedAt;
 }
 
-// Infrastructure/Persistence/AppDbContext.cs
-public override async Task<int> SaveChangesAsync(CancellationToken ct = default)
+// Infrastructure/Persistence/AppDbContext.cs — publisher injected via primary constructor
+public class AppDbContext(DbContextOptions<AppDbContext> options, IPublisher publisher)
+    : DbContext(options)
 {
-    var aggregates = ChangeTracker.Entries<AggregateRoot>()
-        .Where(e => e.Entity.DomainEvents.Count > 0)
-        .Select(e => e.Entity)
-        .ToList();
+    public override async Task<int> SaveChangesAsync(CancellationToken ct = default)
+    {
+        var aggregates = ChangeTracker.Entries<AggregateRoot>()
+            .Where(e => e.Entity.DomainEvents.Count > 0)
+            .Select(e => e.Entity)
+            .ToList();
 
-    var events = aggregates.SelectMany(a => a.DomainEvents).ToList();
+        var events = aggregates.SelectMany(a => a.DomainEvents).ToList();
 
-    var result = await base.SaveChangesAsync(ct);
+        var result = await base.SaveChangesAsync(ct);
 
-    foreach (var @event in events)
-        await _publisher.Publish(@event, ct);
+        foreach (var @event in events)
+            await publisher.Publish(@event, ct);
 
-    foreach (var aggregate in aggregates)
-        aggregate.ClearDomainEvents();
+        foreach (var aggregate in aggregates)
+            aggregate.ClearDomainEvents();
 
-    return result;
+        return result;
+    }
 }
 ```
 

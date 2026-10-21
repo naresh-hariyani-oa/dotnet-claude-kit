@@ -18,7 +18,13 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Check SKILL.md frontmatter
+      - name: Validate skill frontmatter schema
+        # Accepts the optional disable-model-invocation field (boolean).
+        run: |
+          python3 -c "import yaml" 2>/dev/null || python3 -m pip install --user --quiet pyyaml
+          python3 .github/scripts/check_frontmatter.py skills
+
+      - name: Check SKILL.md structure and line budgets
         run: |
           errors=0
           for skill in skills/*/SKILL.md; do
@@ -45,12 +51,25 @@ jobs:
               errors=$((errors + 1))
             fi
 
-            # Check required sections
-            for section in "Core Principles" "Patterns" "Anti-patterns" "Decision Guide"; do
-              if ! grep -q "## $section" "$skill"; then
-                echo "WARNING: $skill missing '## $section' section"
+            # Workflow/orchestrator skills (What/When/How structure) have a tighter budget
+            if grep -qx "## What" "$skill"; then
+              if [ "$lines" -gt 200 ]; then
+                echo "ERROR: $skill is a workflow skill with $lines lines (max 200)"
+                errors=$((errors + 1))
               fi
-            done
+              for section in "What" "When" "How"; do
+                if ! grep -q "## $section" "$skill"; then
+                  echo "WARNING: $skill missing '## $section' section"
+                fi
+              done
+            else
+              # Knowledge skills use the standard section set
+              for section in "Core Principles" "Patterns" "Anti-patterns" "Decision Guide"; do
+                if ! grep -q "## $section" "$skill"; then
+                  echo "WARNING: $skill missing '## $section' section"
+                fi
+              done
+            fi
           done
 
           if [ $errors -gt 0 ]; then
@@ -58,54 +77,6 @@ jobs:
             exit 1
           fi
           echo "All skills validated successfully"
-
-  validate-commands:
-    name: Validate Commands
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Check command frontmatter and structure
-        run: |
-          errors=0
-          if [ ! -d "commands" ] || [ -z "$(ls commands/*.md 2>/dev/null)" ]; then
-            echo "WARNING: No command files found in commands/"
-            exit 0
-          fi
-          for cmd in commands/*.md; do
-            # Check YAML frontmatter exists
-            if ! head -1 "$cmd" | grep -q "^---$"; then
-              echo "ERROR: $cmd missing YAML frontmatter"
-              errors=$((errors + 1))
-            fi
-
-            # Check description field
-            if ! grep -q "^description:" "$cmd"; then
-              echo "ERROR: $cmd missing 'description' in frontmatter"
-              errors=$((errors + 1))
-            fi
-
-            # Check line count (max 200)
-            lines=$(wc -l < "$cmd")
-            if [ "$lines" -gt 200 ]; then
-              echo "ERROR: $cmd has $lines lines (max 200)"
-              errors=$((errors + 1))
-            fi
-
-            # Check required sections
-            for section in "What" "When" "How"; do
-              if ! grep -q "## $section" "$cmd"; then
-                echo "WARNING: $cmd missing '## $section' section"
-              fi
-            done
-          done
-
-          if [ $errors -gt 0 ]; then
-            echo "$errors error(s) found"
-            exit 1
-          fi
-          count=$(ls commands/*.md 2>/dev/null | wc -l)
-          echo "All $count commands validated successfully"
 
   validate-rules:
     name: Validate Rules
@@ -145,7 +116,7 @@ jobs:
             echo "$errors error(s) found"
             exit 1
           fi
-          count=$(find rules -name "*.md" -type f | wc -l)
+          count=$(find .claude/rules rules -name "*.md" -type f 2>/dev/null | wc -l)
           echo "All $count rules validated successfully"
 
   validate-agents:
@@ -153,6 +124,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+
+      - name: Validate agent frontmatter schema
+        # Required: name, description. Optional: model, memory, tools,
+        # disallowedTools, isolation, maxTurns, effort, color.
+        # Forbidden (reserved for user/project-level agents): permissionMode,
+        # hooks, mcpServers. Model must be a tier alias, never a pinned ID.
+        run: |
+          python3 -c "import yaml" 2>/dev/null || python3 -m pip install --user --quiet pyyaml
+          python3 .github/scripts/check_frontmatter.py agents
 
       - name: Check agent structure
         run: |
@@ -166,14 +146,15 @@ jobs:
               fi
             done
 
-            # Check that referenced skills exist
+            # Skill Dependencies list items must reference existing skills (FAIL on miss)
             while IFS= read -r skill; do
               if [ ! -f "skills/$skill/SKILL.md" ]; then
-                echo "WARNING: $agent references skill '$skill' but skills/$skill/SKILL.md not found"
+                echo "ERROR: $agent lists skill '$skill' in Skill Dependencies but skills/$skill/SKILL.md not found"
+                errors=$((errors + 1))
               fi
-            done < <(grep -oP '`(\w[\w-]+)`' "$agent" | tr -d '`' | sort -u | while read s; do
-              if [ -d "skills/$s" ]; then echo "$s"; fi
-            done)
+            done < <(awk '/^## Skill Dependencies/{s=1; next} s && /^## /{exit} s' "$agent" \
+              | grep -oE '^[[:space:]]*([0-9]+\.|-)[[:space:]]+`[a-z0-9][a-z0-9-]*`' \
+              | grep -oE '`[a-z0-9-]+`' | tr -d '`' | sort -u)
           done
 
           if [ $errors -gt 0 ]; then
@@ -192,13 +173,14 @@ jobs:
       - name: Check skill references resolve
         run: |
           errors=0
-          # Check commands reference existing skills
-          for cmd in commands/*.md; do
+          # Check skills reference existing skills (FAIL on unresolved reference)
+          for skill_file in skills/*/SKILL.md; do
             while IFS= read -r skill; do
               if [ ! -f "skills/$skill/SKILL.md" ]; then
-                echo "WARNING: $cmd references skill '$skill' — not found"
+                echo "ERROR: $skill_file references skill '$skill' — not found"
+                errors=$((errors + 1))
               fi
-            done < <(grep -oP 'skills/[\w-]+' "$cmd" 2>/dev/null | sed 's|skills/||' | sort -u)
+            done < <(grep -oP 'skills/[\w-]+' "$skill_file" 2>/dev/null | sed 's|skills/||' | sort -u)
           done
 
           # Check AGENTS.md references existing skills and agents
@@ -260,6 +242,102 @@ jobs:
           fi
           echo "All hook scripts validated"
 
+      - name: Shellcheck hook scripts
+        # Severity warning+ keeps style/info noise out. SC1090/SC1091 excluded:
+        # dynamically sourced paths cannot be followed in CI.
+        run: |
+          shellcheck --version
+          shellcheck --severity=warning --exclude=SC1090,SC1091 hooks/*.sh .github/scripts/*.sh
+          echo "shellcheck passed"
+
+  test-hooks-windows:
+    name: Hook Scripts (Windows Git Bash)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Run hook behavior tests
+        # Pipes realistic PreToolUse/PostToolUse JSON payloads (including
+        # Windows backslash paths) through the hooks under Git Bash and
+        # asserts intended exit codes, stderr reporting, and termination
+        # within a timeout (no drive-root walk hangs, no over-blocking).
+        run: bash .github/scripts/test-hooks.sh
+
+  validate-consistency:
+    name: Docs, Parity & Version Consistency
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Docs count consistency
+        # Counts actual skills, workflow (slash-command) skills, agents, rules,
+        # templates, and [McpServerTool] occurrences, then verifies every
+        # numeric claim in README.md, plugin.json, marketplace.json, and
+        # docs/shorthand-guide.md matches. Fails on any mismatch.
+        run: python3 .github/scripts/check_docs_consistency.py
+
+      - name: Cross-tool rule parity
+        # Every rule file must be mentioned in the .codex and .opencode
+        # AGENTS.md rule listings so all three tools stay in sync.
+        run: |
+          errors=0
+          rules=$(find .claude/rules rules -name '*.md' -type f 2>/dev/null | sort -u)
+          if [ -z "$rules" ]; then
+            echo "ERROR: no rule files found"
+            exit 1
+          fi
+          for doc in .codex/AGENTS.md .opencode/AGENTS.md; do
+            if [ ! -f "$doc" ]; then
+              echo "ERROR: $doc does not exist"
+              errors=$((errors + 1))
+              continue
+            fi
+            missing=""
+            for rule in $rules; do
+              base=$(basename "$rule")
+              if ! grep -qF "$base" "$doc"; then
+                missing="$missing $base"
+              fi
+            done
+            if [ -n "$missing" ]; then
+              echo "ERROR: $doc is missing rule(s):$missing"
+              errors=$((errors + 1))
+            else
+              echo "OK: $doc lists all rules"
+            fi
+          done
+          if [ $errors -gt 0 ]; then
+            echo "$errors parity error(s) found"
+            exit 1
+          fi
+          echo "Cross-tool rule parity validated"
+
+      - name: Version consistency
+        # plugin.json version == marketplace.json version == newest CHANGELOG entry.
+        run: |
+          python3 - << 'PYEOF'
+          import json, re, sys
+
+          plugin = json.load(open(".claude-plugin/plugin.json"))["version"]
+          marketplace = json.load(open(".claude-plugin/marketplace.json"))["plugins"][0]["version"]
+          match = re.search(r"^##\s+\[(\d+\.\d+\.\d+)\]", open("CHANGELOG.md", encoding="utf-8").read(), re.M)
+          if match is None:
+              print("ERROR: no '## [x.y.z]' entry found in CHANGELOG.md")
+              sys.exit(1)
+          changelog = match.group(1)
+
+          print(f"plugin.json      : {plugin}")
+          print(f"marketplace.json : {marketplace}")
+          print(f"CHANGELOG.md     : {changelog}")
+          if not (plugin == marketplace == changelog):
+              print("ERROR: version mismatch between plugin.json, marketplace.json, and CHANGELOG.md")
+              sys.exit(1)
+          print("Versions are consistent")
+          PYEOF
+
   validate-plugin:
     name: Validate Plugin Manifests
     runs-on: ubuntu-latest
@@ -299,7 +377,7 @@ jobs:
       - name: Validate component directories exist
         run: |
           errors=0
-          for path in skills/ agents/ commands/ .claude/rules/ hooks/hooks.json .mcp.json; do
+          for path in skills/ agents/ .claude/rules/ hooks/hooks.json .mcp.json; do
             if [ ! -e "$path" ]; then
               echo "ERROR: Expected '$path' but it does not exist"
               errors=$((errors + 1))
@@ -377,7 +455,7 @@ jobs:
         run: dotnet test mcp/CWM.RoslynNavigator/tests/CWM.RoslynNavigator.Tests.csproj --no-restore -c Release --logger trx --results-directory TestResults
 
       - name: Publish test results
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: test-results

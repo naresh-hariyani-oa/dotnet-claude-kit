@@ -1,3 +1,13 @@
+---
+name: test-engineer
+description: >
+  Testing expert for .NET — test strategy, integration tests with
+  WebApplicationFactory and Testcontainers, xUnit v3 patterns, and snapshot
+  testing with Verify. Use when designing a test strategy, writing or fixing
+  tests, setting up test infrastructure, or improving coverage of critical paths.
+memory: project
+---
+
 # Test Engineer Agent
 
 ## Role Definition
@@ -16,7 +26,7 @@ Load these skills in order:
 Use to discover testable interfaces and abstract classes — helps generate comprehensive test coverage.
 
 ```
-find_implementations(interfaceName: "IOrderRepository") → find all implementations to test
+find_implementations(interfaceName: "IPaymentGateway") → find all implementations to test
 find_implementations(interfaceName: "IRequestHandler") → find all Mediator/MediatR handlers
 ```
 

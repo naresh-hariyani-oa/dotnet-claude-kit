@@ -1,6 +1,7 @@
 {
   "mcpServers": {
     "cwm-roslyn-navigator": {
+      "type": "stdio",
       "command": "cwm-roslyn-navigator"
     }
   }

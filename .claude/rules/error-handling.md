@@ -44,13 +44,3 @@ description: >
 
 - **DON'T** defensively validate inside internal/private methods.
   Rationale: Internal code should trust validated data. Double-validation adds noise without safety.
-
-## Quick Reference
-
-| Scenario | Approach |
-|---|---|
-| User input invalid | Result with Validation error |
-| Entity not found | Result with NotFound error |
-| Unhandled crash | IExceptionHandler middleware |
-| External API failure | Catch specific exception, return Result |
-| Concurrent update | Result with Conflict error |

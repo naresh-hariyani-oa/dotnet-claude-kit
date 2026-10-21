@@ -14,7 +14,7 @@ description: >
 
 ## Core Principles
 
-1. **Use ASP.NET Identity for user management** — Don't build your own user store. Identity handles password hashing, lockout, two-factor, and email confirmation.
+1. **Use ASP.NET Identity for user management** — Don't build your own user store. Identity handles password hashing, lockout, two-factor, email confirmation, and (since .NET 10) built-in passkey/WebAuthn support for passwordless login.
 2. **JWT for APIs, cookies for web apps** — APIs use Bearer token authentication; Blazor/MVC apps use cookie authentication.
 3. **Policy-based authorization over roles** — Policies are testable, composable, and more expressive than `[Authorize(Roles = "Admin")]`.
 4. **Never store secrets in code** — Use user secrets in development, Azure Key Vault / environment variables in production.
@@ -47,31 +47,35 @@ builder.Services.AddAuthorization();
 
 ### Token Generation
 
+Use `JsonWebTokenHandler` from `Microsoft.IdentityModel.JsonWebTokens` — it is the maintained, span-based handler that ASP.NET Core itself validates with. `JwtSecurityTokenHandler` (System.IdentityModel.Tokens.Jwt) is the legacy stack.
+
 ```csharp
-public class TokenService(IConfiguration config, TimeProvider clock)
+public sealed class TokenService(IConfiguration config, TimeProvider clock)
 {
+    private static readonly JsonWebTokenHandler TokenHandler = new();
+
     public string GenerateToken(User user, IEnumerable<string> roles)
     {
-        var claims = new List<Claim>
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(config["Jwt:Key"]!));
+        var now = clock.GetUtcNow();
+
+        var descriptor = new SecurityTokenDescriptor
         {
-            new(ClaimTypes.NameIdentifier, user.Id),
-            new(ClaimTypes.Email, user.Email!),
-            new(ClaimTypes.Name, user.UserName!)
+            Issuer = config["Jwt:Issuer"],
+            Audience = config["Jwt:Audience"],
+            IssuedAt = now.UtcDateTime,
+            Expires = now.AddHours(1).UtcDateTime,
+            Claims = new Dictionary<string, object>
+            {
+                [JwtRegisteredClaimNames.Sub] = user.Id,
+                [JwtRegisteredClaimNames.Email] = user.Email!,
+                [JwtRegisteredClaimNames.Name] = user.UserName!,
+                ["roles"] = roles.ToArray()
+            },
+            SigningCredentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256)
         };
 
-        claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
-
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(config["Jwt:Key"]!));
-        var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-
-        var token = new JwtSecurityToken(
-            issuer: config["Jwt:Issuer"],
-            audience: config["Jwt:Audience"],
-            claims: claims,
-            expires: clock.GetUtcNow().AddHours(1).DateTime,
-            signingCredentials: credentials);
-
-        return new JwtSecurityTokenHandler().WriteToken(token);
+        return TokenHandler.CreateToken(descriptor);
     }
 }
 ```
@@ -218,6 +222,7 @@ options.TokenValidationParameters = new TokenValidationParameters
 | Blazor Server / MVC | Cookie authentication |
 | External identity provider | OpenID Connect |
 | User registration / login | ASP.NET Identity |
+| Passwordless login | ASP.NET Identity passkeys (WebAuthn, built-in since .NET 10) |
 | Permission checking | Policy-based authorization |
 | Multi-tenant API | Claims-based with tenant claim |
 | API-to-API communication | Client credentials (OAuth 2.0) |

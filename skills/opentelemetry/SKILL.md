@@ -45,12 +45,11 @@ builder.Services.AddOpenTelemetry()
         .AddHttpClientInstrumentation()
         .AddRuntimeInstrumentation()
         .AddMeter("MyApp.Orders"))
-    .WithLogging(logging => logging
-        .AddOtlpExporter());
+    .WithLogging()             // no per-signal exporter here —
+    .UseOtlpExporter();        // UseOtlpExporter covers all three signals
 
-// Cross-cutting OTLP export for traces + metrics (configured via env vars)
-builder.Services.AddOpenTelemetry()
-    .UseOtlpExporter();
+// UseOtlpExporter replaces per-signal AddOtlpExporter calls. Never combine
+// the two — mixing them throws NotSupportedException (see Anti-patterns).
 ```
 
 The OTLP endpoint defaults to `http://localhost:4317` (gRPC). Override via:

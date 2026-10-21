@@ -1,7 +1,9 @@
 using System.ComponentModel;
 using System.Text.Json;
+using CWM.RoslynNavigator.Analyzers;
 using CWM.RoslynNavigator.Responses;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using ModelContextProtocol.Server;
 
 namespace CWM.RoslynNavigator.Tools;
@@ -9,15 +11,20 @@ namespace CWM.RoslynNavigator.Tools;
 [McpServerToolType]
 public static class GetTestCoverageMapTool
 {
-    private static readonly string[] TestFrameworkAssemblies =
+    /// <summary>
+    /// Assemblies that indicate a behaviour-driven suite, where tests are organised by feature
+    /// or endpoint rather than one test class per production type.
+    /// </summary>
+    private static readonly string[] IntegrationTestAssemblies =
     [
-        "xunit.v3.core",
-        "xunit.core",
-        "nunit.framework",
-        "Microsoft.VisualStudio.TestPlatform.TestFramework"
+        "Microsoft.AspNetCore.Mvc.Testing",
+        "Testcontainers",
+        "Microsoft.AspNetCore.TestHost",
+        "Respawn",
+        "WireMock.Net"
     ];
 
-    [McpServerTool(Name = "get_test_coverage_map"), Description("Heuristic test coverage map: identifies which production types have corresponding test classes. Matches by naming convention (e.g., OrderService → OrderServiceTests). Not runtime coverage — structural analysis only.")]
+    [McpServerTool(Name = "get_test_coverage_map"), Description("Heuristic test coverage map: identifies which production types have corresponding test classes. Matches by naming convention (e.g., OrderService → OrderServiceTests). Not runtime coverage — structural analysis only. IMPORTANT: this metric is only valid for suites written one test class per production type. For integration- or feature-driven suites it returns applicable=false with the real test-method count; in that case the percentage is meaningless and must not be graded or reported as coverage.")]
     public static async Task<string> ExecuteAsync(
         WorkspaceManager workspace,
         [Description("Optional: production project name to check coverage for")] string? projectFilter = null,
@@ -34,13 +41,21 @@ public static class GetTestCoverageMapTool
         // Identify test projects vs production projects
         var testProjects = new List<Project>();
         var productionProjects = new List<Project>();
+        var usesIntegrationHarness = false;
 
         foreach (var project in solution.Projects)
         {
-            if (await IsTestProjectAsync(workspace, project, ct))
+            var compilation = await workspace.GetCompilationAsync(project.Id, ct);
+
+            if (SourceClassifier.IsTestProject(project, compilation))
+            {
                 testProjects.Add(project);
+                usesIntegrationHarness |= ReferencesIntegrationHarness(compilation);
+            }
             else
+            {
                 productionProjects.Add(project);
+            }
         }
 
         // Filter production projects if specified
@@ -54,6 +69,8 @@ public static class GetTestCoverageMapTool
         // Collect all test type names from test projects
         var testTypeNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var testTypeFiles = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var testMethodCount = 0;
+        var testClassCount = 0;
 
         foreach (var testProject in testProjects)
         {
@@ -69,14 +86,23 @@ public static class GetTestCoverageMapTool
 
                 foreach (var node in root.DescendantNodes())
                 {
+                    // Count actual tests, which is the number the structural metric hides.
+                    if (node is MethodDeclarationSyntax method
+                        && SourceClassifier.HasTestAttribute(method))
+                    {
+                        testMethodCount++;
+                        continue;
+                    }
+
                     var symbol = semanticModel.GetDeclaredSymbol(node, ct);
                     if (symbol is not INamedTypeSymbol typeSymbol) continue;
                     if (typeSymbol.TypeKind != TypeKind.Class) continue;
 
+                    testClassCount++;
                     testTypeNames.Add(typeSymbol.Name);
                     var location = SymbolResolver.GetLocation(typeSymbol);
                     if (location.HasValue)
-                        testTypeFiles.TryAdd(typeSymbol.Name, SymbolResolver.MakeRelativePath(location.Value.File));
+                        testTypeFiles.TryAdd(typeSymbol.Name, workspace.ToRelativePath(location.Value.File));
                 }
             }
         }
@@ -95,6 +121,12 @@ public static class GetTestCoverageMapTool
 
             foreach (var tree in compilation.SyntaxTrees)
             {
+                // Generated and migration types have no test surface to match against.
+                var sourceKind = SourceClassifier.Classify(
+                    tree, workspace.ToRelativePath(tree.FilePath ?? ""), isTestProject: false, ct);
+                if (sourceKind is SourceKind.Generated or SourceKind.Migration)
+                    continue;
+
                 var semanticModel = compilation.GetSemanticModel(tree);
                 var root = await tree.GetRootAsync(ct);
 
@@ -119,7 +151,7 @@ public static class GetTestCoverageMapTool
                         var location = SymbolResolver.GetLocation(typeSymbol);
                         coverage.Add(new TestCoverageEntry(
                             Type: typeName,
-                            File: location.HasValue ? SymbolResolver.MakeRelativePath(location.Value.File) : "unknown",
+                            File: location.HasValue ? workspace.ToRelativePath(location.Value.File) : "unknown",
                             HasTests: hasTests,
                             TestFile: testFile));
                     }
@@ -128,26 +160,58 @@ public static class GetTestCoverageMapTool
         }
 
         var percentage = totalTypes > 0 ? (testedTypes * 100) / totalTypes : 0;
-        return JsonSerializer.Serialize(new TestCoverageMapResult(coverage, totalTypes, testedTypes, percentage));
+
+        var notApplicableReason = DetermineNotApplicableReason(
+            percentage, testMethodCount, totalTypes, usesIntegrationHarness);
+
+        return JsonSerializer.Serialize(new TestCoverageMapResult(
+            coverage,
+            totalTypes,
+            testedTypes,
+            percentage,
+            Applicable: notApplicableReason is null,
+            NotApplicableReason: notApplicableReason,
+            TestMethodCount: testMethodCount,
+            TestClassCount: testClassCount));
     }
 
-    private static async Task<bool> IsTestProjectAsync(WorkspaceManager workspace, Project project, CancellationToken ct)
+    /// <summary>
+    /// Why the structural metric cannot be trusted for this solution, or null when it can.
+    /// A substantial suite that does not name-match means tests are organised by behaviour,
+    /// not by type — the percentage measures naming convention, not coverage.
+    /// </summary>
+    private static string? DetermineNotApplicableReason(
+        int percentage,
+        int testMethodCount,
+        int totalTypes,
+        bool usesIntegrationHarness)
     {
-        // Check by name convention
-        if (project.Name.EndsWith("Tests", StringComparison.OrdinalIgnoreCase) ||
-            project.Name.EndsWith("Test", StringComparison.OrdinalIgnoreCase) ||
-            project.Name.Contains(".Tests.", StringComparison.OrdinalIgnoreCase))
-            return true;
+        if (testMethodCount == 0 || percentage >= 50)
+            return null;
 
-        // Check for test framework references
-        var compilation = await workspace.GetCompilationAsync(project.Id, ct);
-        if (compilation is null) return false;
+        if (usesIntegrationHarness)
+            return $"Integration-driven suite ({testMethodCount} test methods) using WebApplicationFactory/Testcontainers. "
+                + "Tests exercise features end-to-end rather than one class per type, so name matching "
+                + $"({percentage}%) measures naming convention, not coverage. Use a runtime coverage tool instead.";
+
+        if (testMethodCount * 4 > totalTypes)
+            return $"Behaviour-driven suite ({testMethodCount} test methods across {totalTypes} production types) "
+                + $"where only {percentage}% of type names have a matching *Tests class. Tests appear to be "
+                + "organised by feature rather than by type, so this metric understates real coverage.";
+
+        return null;
+    }
+
+    private static bool ReferencesIntegrationHarness(Compilation? compilation)
+    {
+        if (compilation is null)
+            return false;
 
         foreach (var reference in compilation.ReferencedAssemblyNames)
         {
-            foreach (var testAssembly in TestFrameworkAssemblies)
+            foreach (var harness in IntegrationTestAssemblies)
             {
-                if (reference.Name.Equals(testAssembly, StringComparison.OrdinalIgnoreCase))
+                if (reference.Name.StartsWith(harness, StringComparison.OrdinalIgnoreCase))
                     return true;
             }
         }
@@ -181,5 +245,4 @@ public static class GetTestCoverageMapTool
 
         return (false, null);
     }
-
 }

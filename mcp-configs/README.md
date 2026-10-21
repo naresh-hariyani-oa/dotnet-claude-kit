@@ -37,7 +37,19 @@ This directory contains template MCP (Model Context Protocol) server configurati
 
 ### Claude Code
 
-Merge the server configurations into your project's `.mcp.json` file at the repository root:
+**Preferred pattern:** the kit's root `.mcp.json` registers `cwm-roslyn-navigator` with no arguments — the server auto-discovers the `.sln`/`.slnx` in your workspace (searching up to 3 levels deep). Use that unless you need to pin a specific solution:
+
+```json
+{
+  "mcpServers": {
+    "cwm-roslyn-navigator": {
+      "command": "cwm-roslyn-navigator"
+    }
+  }
+}
+```
+
+To use this directory's fuller template instead, merge the server configurations into your project's `.mcp.json` file at the repository root:
 
 ```bash
 # If .mcp.json does not exist yet, copy the template
@@ -46,7 +58,7 @@ cp mcp-configs/mcp-servers.json .mcp.json
 # If .mcp.json already exists, merge the servers manually
 ```
 
-Replace `${workspaceFolder}` with your actual workspace path, or use the variable if your client supports it.
+Replace `${workspaceFolder}` with your actual workspace path — Claude Code does not expand this VS Code-style variable, so leaving it in place will break the server. Only keep the variable if your client (e.g. VS Code, Cursor) supports it.
 
 Replace `${GITHUB_TOKEN}` with your token or set it as an environment variable.
 

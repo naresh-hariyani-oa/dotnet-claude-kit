@@ -50,7 +50,28 @@ description: >
 
 ## Agent Structure
 
-Agents live at `agents/<agent-name>.md`. Each agent contains:
+Agents live at `agents/<agent-name>.md`.
+
+### Frontmatter Schema (Required)
+
+```yaml
+---
+name: agent-name           # kebab-case, matches file name
+description: >
+  What this agent is an expert in and when Claude should delegate to it.
+  Include concrete trigger scenarios — Claude routes subagent work based on this.
+model: sonnet              # optional — tier alias only (fable/opus/sonnet/haiku), never a pinned version ID
+memory: project            # optional — persistent agent memory scope
+disallowedTools: Write, Edit  # optional — tools the agent must never use (e.g. read-only reviewers)
+isolation: worktree        # optional — run the agent in an isolated git worktree
+---
+```
+
+Plugin agents must NOT declare `permissionMode`, `hooks`, or `mcpServers` — those fields are reserved for user/project-level agents. The optional `memory`, `disallowedTools`, and `isolation` fields ARE allowed — use them deliberately (e.g. `disallowedTools: Write, Edit` keeps review agents read-only; `isolation: worktree` isolates cleanup agents).
+
+### Required Sections
+
+Below the frontmatter, each agent contains:
 
 1. **Role definition** — What this agent is an expert in
 2. **Skill dependencies** — Which skills this agent loads (by name)
@@ -77,36 +98,39 @@ Knowledge files at `knowledge/` are NOT skills. They're reference material that 
 - `breaking-changes.md` — Migration gotchas
 - `decisions/*.md` — ADRs using the template format
 
-## Command Structure
+## Workflow Skill Structure (Orchestrators)
 
-Commands live at `commands/<command-name>.md`. Each command is a lightweight orchestrator that invokes skills and agents.
+Claude Code merged slash commands into skills, so the kit no longer has a `commands/` directory. Workflow orchestrators (e.g., `/verify`, `/scaffold`, `/tdd`) are skills like any other — they live at `skills/<name>/SKILL.md` and register `/name` automatically — but follow a different body structure than knowledge skills.
 
 ### Frontmatter Schema (Required)
 
 ```yaml
 ---
+name: workflow-name        # kebab-case, matches directory name; registers /workflow-name
 description: >
-  What this command does. Displayed in command listings.
+  What this workflow does and its trigger phrases.
+# Optional: disable-model-invocation: true — for explicit /name invocation only
 ---
 ```
 
 ### Required Sections
 
-1. **What** — What the command does
+1. **What** — What the workflow does
 2. **When** — When to use it (trigger phrases)
 3. **How** — Step-by-step execution flow (invokes skills/agents)
 4. **Example** — Example output or usage
-5. **Related** — Related commands
+5. **Related** — Related workflows
 
 ### Quality Standards
 
-- **Maximum 200 lines** — Commands are orchestrators, not encyclopedias
-- **Invoke, don't implement** — Commands reference skills and agents for the actual logic
-- **Clear trigger phrases** — Users should know when to reach for this command
+- **Maximum 200 lines** — Orchestrators are not encyclopedias (knowledge skills get 400)
+- **One skill per concern** — A workflow skill carries its methodology inline; never create a separate knowledge twin for a workflow (no `verify` + `verification-loop` pairs). Twin skills double the always-loaded description surface and cause routing collisions.
+- **Deep reference material goes in `references/`** — If methodology genuinely exceeds the budget (e.g. per-architecture code templates), put it in `skills/<name>/references/<topic>.md` and point to it from SKILL.md. References load only on demand — this is the token-friendly progressive-disclosure pattern.
+- **Clear trigger phrases** — Users should know when to reach for this workflow. When merging skills, the surviving description must absorb the absorbed skill's trigger phrases.
 
 ## Rule Structure
 
-Rules live at `rules/dotnet/<rule-name>.md`. Rules are always loaded into context.
+Rules live at `.claude/rules/<rule-name>.md`. Rules are always loaded into context.
 
 ### Frontmatter Schema (Required)
 
@@ -194,8 +218,9 @@ How Claude should work on this repository (and any project using dotnet-claude-k
 1. Check the spec at `docs/dotnet-claude-kit-SPEC.md` for the full vision
 2. Follow the skill/agent/template/command/rule structure defined above
 3. Run `dotnet format --verify-no-changes` before committing
-4. Ensure skill files stay under 400 lines, commands under 200, rules under 100
+4. Ensure knowledge skills stay under 400 lines, workflow/orchestrator skills under 200, rules under 100
 5. Every new pattern needs a BAD/GOOD code comparison in Anti-patterns
-6. Ensure all cross-references (commands → skills, agents → skills) resolve to real files
-7. New commands must have YAML frontmatter with `description`
+6. Ensure all cross-references (skills → skills, agents → skills) resolve to real files
+7. All orchestrators are skills — never create a `commands/` directory; workflow skills need `name` + `description` frontmatter
 8. New rules must have `alwaysApply: true` in frontmatter
+9. Agents must have YAML frontmatter with `name` and `description` (trigger scenarios included); model references use tier aliases only
